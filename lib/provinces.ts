@@ -22,8 +22,8 @@ export const PROVINCES: Record<ProvinceCode, ProvinceConfig> = {
     name: "Alberta",
     enabled: true,
     dir: "ab",
-    nurseLine: { phone: "811", name: "Health Link", url: "https://www.albertahealthservices.ca/healthlink/healthlink.aspx" },
-    findADoctor: { name: "Alberta Find a Doctor", url: "https://albertafindadoctor.ca/" },
+    nurseLine: { phone: "811", name: "Health Link", url: "https://www.primarycarealberta.ca/page14176.aspx" },
+    findADoctor: { name: "Alberta Find a Provider", url: "https://albertafindaprovider.ca/" },
     erWaitsSourceUrl: "https://www.albertahealthservices.ca/waittimes/waittimes.aspx",
   },
   BC: {
@@ -31,8 +31,8 @@ export const PROVINCES: Record<ProvinceCode, ProvinceConfig> = {
     name: "British Columbia",
     enabled: true,
     dir: "bc",
-    nurseLine: { phone: "811", name: "HealthLink BC", url: "https://www.healthlinkbc.ca/" },
-    findADoctor: { name: "Health Connect Registry", url: "https://www.healthlinkbc.ca/health-connect-registry" },
+    nurseLine: { phone: "811", name: "HealthLink BC", url: "https://www.healthlinkbc.ca/find-care/healthlink-bc-8-1-1-services" },
+    findADoctor: { name: "Health Connect Registry", url: "https://www.healthlinkbc.ca/find-care/health-connect-registry" },
     erWaitsSourceUrl: "https://edwaittimes.ca/",
   },
 };

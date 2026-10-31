@@ -28,4 +28,16 @@ Import the GitHub repo in Vercel and set `ANTHROPIC_API_KEY` under Environment V
 | `data/personas/` | Synthea FHIR bundles for `build_summary` |
 | `scripts/refresh-er-waits.ts` | Refreshes ER waits from the official AB/BC pages |
 
-All files under `rules/` and `data/` are **PLACEHOLDERS** until they're replaced with the vetted data from the project Google Drive folder.
+## Data status
+| File | Source | Status |
+|---|---|---|
+| `data/<prov>/er_waits.json` | AHS wait-time feed (AB), edwaittimes.ca (BC) | Real snapshot. Refresh: `npm run refresh:er-waits` |
+| `data/bc/facilities.csv` | HealthLink BC walk-in clinics (BC Data Catalogue) + ER/UPCC sites | Real |
+| `data/ab/facilities.csv` | AHS ER/urgent care sites + OpenStreetMap clinics | Real (OSM coverage varies) |
+| `data/<prov>/pharmacies.csv` | OpenStreetMap | Real (OSM coverage varies) |
+| `rules/<prov>/*.md` | Official provincial pages (links in each file) | **Draft – needs team/mentor review** |
+| `data/personas/` | Synthea | **Placeholder** – data analyst to add 5–10 personas |
+
+Rebuild facilities: `npm run fetch:osm && npm run build:facilities -- .osm-cache`
+
+Attribution: map data © OpenStreetMap contributors (ODbL); BC walk-in clinics © Province of British Columbia (OGL-BC); boundaries from Natural Earth (public domain). The app must show these credits.

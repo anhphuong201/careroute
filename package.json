@@ -2,7 +2,7 @@
   "name": "careroute",
   "version": "0.1.0",
   "private": true,
-  "description": "CareRoute – AI care-navigation agent for people in Canada without (accessible) family doctors. Prototype: AB + BC.",
+  "description": "CareRoute \u2013 AI care-navigation agent for people in Canada without (accessible) family doctors. Prototype: AB + BC.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "refresh:er-waits": "tsx scripts/refresh-er-waits.ts"
+    "refresh:er-waits": "NODE_USE_ENV_PROXY=1 tsx scripts/refresh-er-waits.ts",
+    "build:facilities": "NODE_USE_ENV_PROXY=1 tsx scripts/build-facilities.ts",
+    "fetch:osm": "bash scripts/fetch-osm.sh .osm-cache"
   },
   "engines": {
     "node": ">=20"

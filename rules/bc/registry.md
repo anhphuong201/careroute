@@ -2,21 +2,21 @@
 id: bc-registry
 province: BC
 route: registry
-source_url: https://www.healthlinkbc.ca/health-connect-registry
-last_reviewed: null
-status: PLACEHOLDER   # replace with content from the CareRoute Google Drive folder
+needs: [find_doctor]
+source_url: https://www.healthlinkbc.ca/find-care/health-connect-registry
+sources:
+  - title: "Health Connect Registry – HealthLink BC"
+    url: https://www.healthlinkbc.ca/find-care/health-connect-registry
+last_reviewed: 2026-10-31
+status: draft   # drafted from the official pages below; needs team/mentor review
 ---
 
 # BC – Health Connect Registry (find a family doctor)
 
-> PLACEHOLDER — wording and criteria must be copied from the official source above
-> (or the Google Drive data folder) and reviewed before use.
-
 ## When this route fits
-- TODO
+- The person lives in B.C. and has no family doctor or nurse practitioner. Always offer this IN ADDITION to the route for today's need. You can register yourself and your family.
 
-## When this route does NOT fit
-- TODO
-
-## What the user should bring / do
-- TODO
+## What to do
+- Register online in under 5 minutes with the Personal Health Number (PHN) from the BC Services Card.
+- Or call 8-1-1 to register in another language (over 130 languages).
+- Waitlists at local clinics have moved to the registry. While you wait, use pharmacists, walk-in clinics and UPCCs.
