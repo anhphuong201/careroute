@@ -13,5 +13,6 @@ export async function POST(req: Request) {
   if (!(province in PROVINCES)) return NextResponse.json({ error: "bad_province" }, { status: 400 });
   const f = getFacility(province, String(b.facility_id ?? ""));
   if (!f) return NextResponse.json({ error: "unknown_facility" }, { status: 404 });
-  return NextResponse.json(bookAppointment(f, String(b.member_name ?? "").slice(0, 80) || "Patient"));
+  const slot = typeof b.slot === "string" ? b.slot : undefined;
+  return NextResponse.json(bookAppointment(f, String(b.member_name ?? "").slice(0, 80) || "Patient", new Date(), slot));
 }

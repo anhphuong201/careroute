@@ -6,7 +6,7 @@ import { haversineKm } from "../data/geo";
 import { PROVINCES, type ProvinceCode } from "../provinces";
 import type { ErWaitsFile, ErWaitSite } from "../data/erTypes";
 
-export type FacilityKind = "pharmacy" | "walk_in" | "urgent_care" | "emergency";
+export type FacilityKind = "pharmacy" | "walk_in" | "urgent_care" | "emergency" | "virtual";
 
 export interface Facility {
   id: string;
@@ -25,6 +25,30 @@ export interface Facility {
   source: string;
   source_url: string;
   distance_km?: number;
+  /** Virtual care only */
+  modes?: ("phone" | "video" | "chat")[];
+  how?: string;
+  cost?: string;
+  limits?: string;
+  official?: boolean;
+  source_title?: string;
+}
+
+interface VirtualFile {
+  services: { id: string; name: string; modes: Facility["modes"]; how: string; hours: string; cost: string; phone: string; url: string; official: boolean; limits?: string; source_title: string; source_url: string }[];
+}
+
+/** Virtual care services (/data/<prov>/virtual_care.json). No location, so lat/lng are NaN. */
+export function loadVirtual(p: ProvinceCode): Facility[] {
+  const file = path.join(dataDir(p), "virtual_care.json");
+  if (!existsSync(file)) return [];
+  const v = JSON.parse(readFileSync(file, "utf8")) as VirtualFile;
+  return v.services.map((s) => ({
+    id: s.id, kind: "virtual" as const, name: s.name, address: "", city: "", lat: NaN, lng: NaN,
+    phone: s.phone, hours: s.hours, accepts_walk_in: "", languages: "", wheelchair_accessible: "",
+    website: s.url, source: s.source_title, source_url: s.source_url, modes: s.modes, how: s.how, cost: s.cost,
+    limits: s.limits, official: s.official, source_title: s.source_title,
+  }));
 }
 
 const dataDir = (p: ProvinceCode) => path.join(process.cwd(), "data", PROVINCES[p].dir);
@@ -77,7 +101,7 @@ export function loadFacilities(p: ProvinceCode): Facility[] {
 }
 
 export function getFacility(p: ProvinceCode, id: string): Facility | undefined {
-  return loadFacilities(p).find((f) => f.id === id);
+  return loadFacilities(p).find((f) => f.id === id) ?? loadVirtual(p).find((f) => f.id === id);
 }
 
 export interface FindFacilitiesInput {
@@ -91,9 +115,19 @@ export interface FindFacilitiesInput {
 /** Walk-in requests also return clinics with unknown walk-in status, flagged so the UI says "call first". */
 export function findFacilities(input: FindFacilitiesInput) {
   const limit = Math.min(Math.max(input.limit ?? 5, 1), 10);
+  if (input.kind === "virtual") {
+    // Official services first; no location needed.
+    const list = loadVirtual(input.province).sort((a, b) => Number(b.official) - Number(a.official));
+    return { location_used: true, facilities: list.slice(0, limit), note: undefined as string | undefined };
+  }
   const kinds: Facility["kind"][] = input.kind === "walk_in" ? ["walk_in", "urgent_care", "clinic"] : [input.kind];
   let list = loadFacilities(input.province).filter((f) => kinds.includes(f.kind));
   const hasLoc = typeof input.lat === "number" && typeof input.lng === "number";
+  // Hide OSM clinics that duplicate an official site (same building, ≤150 m).
+  if (input.kind === "walk_in") {
+    const official = list.filter((f) => f.kind !== "clinic");
+    list = list.filter((f) => f.kind !== "clinic" || !official.some((o) => haversineKm(o.lat, o.lng, f.lat, f.lng) <= 0.15));
+  }
   if (hasLoc) {
     list = list
       .map((f) => ({ ...f, distance_km: Math.round(haversineKm(input.lat!, input.lng!, f.lat, f.lng) * 10) / 10 }))

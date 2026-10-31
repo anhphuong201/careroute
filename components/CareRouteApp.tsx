@@ -10,15 +10,21 @@ import type { AgentResult } from "@/lib/agent/runAgent";
 import type { RedFlagAction, RedFlagCategory } from "@/lib/safety/redFlags";
 import type { Booking } from "@/lib/tools/booking";
 
-type Screen = "home" | "household" | "check" | "need" | "loading" | "emergency" | "result" | "clarify" | "history" | "error";
+type Screen =
+  | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
+  | "result" | "book" | "booked" | "clarify" | "history" | "records" | "error";
 type RouteResult = Extract<AgentResult, { type: "route" }>;
+type Option = RouteResult["facilities"][number];
 type Persona = { id: string; name: string; note: string; birthDate: string; province: string };
 
-/** Address + city, without repeating the city when the address already contains it. */
+/* ───────────────────────── helpers ───────────────────────── */
+
 const fullAddress = (f: { address: string; city: string }) =>
   f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address || f.city;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const initial = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
+const fmtWait = (m: number, t: Strings) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} ${t.min}` : `${m} ${t.min}`);
 
 function ageMonths(m: HouseholdMember): number | undefined {
   if (m.birthDate) {
@@ -32,6 +38,9 @@ function ageMonths(m: HouseholdMember): number | undefined {
   return m.ageGroup === "infant" ? 0 : undefined;
 }
 
+const KIND_ICON: Record<string, string> = { pharmacy: "💊", walk_in: "🏥", urgent_care: "🚑", emergency: "🏨", clinic: "🩺", virtual: "📹" };
+const ROUTE_ICON: Record<string, string> = { pharmacist: "💊", virtual_care: "📹", walk_in: "🏥", call_811: "📞", registry: "👩‍⚕️", family_doctor: "🩺" };
+
 const DEMO: Record<ProvinceCode, HouseholdMember[]> = {
   AB: [
     { id: "m-amira", displayName: "Amira", ageGroup: "adult", hasFamilyDoctor: "no", personaId: "amira-haddad", birthDate: "1993-04-12" },
@@ -42,9 +51,32 @@ const DEMO: Record<ProvinceCode, HouseholdMember[]> = {
   BC: [{ id: "m-jun", displayName: "Jun", ageGroup: "adult", hasFamilyDoctor: "no", personaId: "jun-chen", birthDate: "2001-07-30" }],
 };
 
+/** Next 7 days; time slots every 30 min, 8:00–19:30, at least 1 h from now. */
+function days(n = 7) {
+  const out: Date[] = [];
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  for (let i = 0; i < n; i++) out.push(new Date(d.getTime() + i * 86400000));
+  return out;
+}
+function slots(day: Date) {
+  const out: Date[] = [];
+  const min = Date.now() + 3600000;
+  for (let h = 8; h < 20; h++)
+    for (const m of [0, 30]) {
+      const s = new Date(day);
+      s.setHours(h, m, 0, 0);
+      if (s.getTime() > min) out.push(s);
+    }
+  return out;
+}
+
+/* ───────────────────────── app ───────────────────────── */
+
 export default function CareRouteApp() {
   const [lang, setLang] = useState<Lang>("en");
   const t: Strings = STRINGS[lang];
+  const loc = lang === "fr" ? "fr-CA" : "en-CA";
   const [consent, setConsent] = useState(false);
   const [screen, setScreen] = useState<Screen>("home");
   const [province, setProvince] = useState<ProvinceCode>("AB");
@@ -61,13 +93,12 @@ export default function CareRouteApp() {
   const [clarifyQ, setClarifyQ] = useState("");
   const [clarifyA, setClarifyA] = useState("");
   const [error, setError] = useState("");
-  const [pending, setPending] = useState<RouteResult["facilities"][number] | null>(null);
+  const [chosen, setChosen] = useState<Option | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const live = useRef<HTMLDivElement>(null);
 
-  // Restore on-device state (only when the user opted in earlier).
   useEffect(() => {
     const saved = storage.lang();
     const l = (saved ?? navigator.language.slice(0, 2)) as Lang;
@@ -80,6 +111,11 @@ export default function CareRouteApp() {
       setProvince(h.province);
     }
     setHistory(storage.history());
+    try {
+      if (!localStorage.getItem("careroute.onboarded")) setScreen("onboard");
+    } catch {
+      /* storage blocked – skip onboarding */
+    }
     fetch("/api/personas").then((r) => r.json()).then(setPersonas).catch(() => {});
   }, []);
 
@@ -87,18 +123,21 @@ export default function CareRouteApp() {
     document.documentElement.lang = lang;
   }, [lang]);
   useEffect(() => {
-    live.current?.focus();
+    live.current?.focus({ preventScroll: true });
     window.scrollTo({ top: 0 });
   }, [screen]);
 
   const members = household.members;
   const member: HouseholdMember = members.find((m) => m.id === memberId) ?? guest;
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? t.goodMorning : h < 18 ? t.goodAfternoon : t.goodEvening;
+  })();
 
   function saveHousehold(h: Household) {
     setHousehold(h);
     storage.saveHousehold(h);
   }
-
   function chooseProvince(p: ProvinceCode) {
     setProvince(p);
     setLocation(null);
@@ -106,7 +145,6 @@ export default function CareRouteApp() {
     setLocStatus("idle");
     saveHousehold({ ...household, province: p });
   }
-
   function askLocation() {
     if (!("geolocation" in navigator)) return setLocStatus("denied");
     setLocStatus("asking");
@@ -120,14 +158,16 @@ export default function CareRouteApp() {
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 },
     );
   }
-
   function pickCity(name: string) {
     setCity(name);
     const c = CITIES[province].find((x) => x.name === name);
     setLocation(c ? { lat: c.lat, lng: c.lng } : null);
-    setLocStatus(c ? "idle" : locStatus);
+    if (c) setLocStatus("idle");
   }
-
+  function record(r: Pick<SearchRecord, "route" | "reason" | "sourceUrl"> & Partial<SearchRecord>) {
+    storage.addHistory({ id: uid(), memberId: member.id, createdAt: new Date().toISOString(), province, ...r });
+    setHistory(storage.history());
+  }
   function flag(category: RedFlagCategory) {
     const action: RedFlagAction = category === "suicidal_thoughts" ? "call_911_or_988" : category === "infant_fever" ? "call_811" : "call_911";
     setChecklist({ ...checklist, [category]: true });
@@ -135,11 +175,14 @@ export default function CareRouteApp() {
     record({ route: "emergency", reason: "safety checklist", sourceUrl: "" });
     setScreen("emergency");
   }
-
-  function record(r: Pick<SearchRecord, "route" | "reason" | "sourceUrl"> & Partial<SearchRecord>) {
-    const rec: SearchRecord = { id: uid(), memberId: member.id, createdAt: new Date().toISOString(), province, ...r };
-    storage.addHistory(rec);
-    setHistory(storage.history());
+  /** Every new search starts with the safety check. */
+  function startSearch(prefill?: string) {
+    if (prefill !== undefined) setText(prefill);
+    setChecklist({});
+    setResult(null);
+    setBooking(null);
+    setChosen(null);
+    setScreen("check");
   }
 
   async function submit(extra?: string) {
@@ -151,14 +194,8 @@ export default function CareRouteApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          province,
-          text: fullText,
-          ageGroup: member.ageGroup,
-          ageMonths: ageMonths(member),
-          hasFamilyDoctor: member.hasFamilyDoctor,
-          checklist,
-          location,
-          city: city || undefined,
+          province, text: fullText, ageGroup: member.ageGroup, ageMonths: ageMonths(member),
+          hasFamilyDoctor: member.hasFamilyDoctor, checklist, location, city: city || undefined,
         }),
       });
       const data = (await res.json()) as AgentResult;
@@ -171,10 +208,7 @@ export default function CareRouteApp() {
         record({ route: data.rule.route, routeTitle: data.rule.title, reason: data.reason, sourceUrl: data.rule.source_url, language: data.language });
         setScreen("result");
       } else if (data.type === "clarify") {
-        if (!data.question) {
-          setScreen("need");
-          return;
-        }
+        if (!data.question) return setScreen("need");
         setClarifyQ(data.question);
         setClarifyA("");
         setScreen("clarify");
@@ -188,103 +222,161 @@ export default function CareRouteApp() {
     }
   }
 
-  async function confirmBooking() {
-    if (!pending) return;
+  async function confirmBooking(slot: Date) {
+    if (!chosen || !result) return;
     const res = await fetch("/api/book", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ province, facility_id: pending.id, member_name: member.displayName || t.me, approved: true }),
+      body: JSON.stringify({ province, facility_id: chosen.id, member_name: member.displayName || t.me, approved: true, slot: slot.toISOString() }),
     });
-    if (res.ok) {
-      const b = (await res.json()) as Booking;
-      setBooking(b);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      record({ route: result!.rule.route, routeTitle: result!.rule.title, reason: result!.reason, sourceUrl: result!.rule.source_url, bookingCode: b.confirmation_code });
-    }
-    setPending(null);
+    if (!res.ok) return setScreen("error");
+    const b = (await res.json()) as Booking;
+    setBooking(b);
+    record({ route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url, bookingCode: b.confirmation_code });
+    setScreen("booked");
   }
 
-  async function downloadSummary() {
-    if (!member.personaId) return;
+  async function downloadSummary(m: HouseholdMember) {
+    if (!m.personaId) return;
+    const forThisSearch = m.id === member.id;
     const res = await fetch("/api/summary", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        persona_id: member.personaId,
-        visit: {
-          province,
-          needSummaryEn: result?.need_summary_en,
-          routeTitle: result?.rule.title,
-          routeSourceUrl: result?.rule.source_url,
-          booking: booking ? { facility_name: booking.facility_name, slot: booking.slot, confirmation_code: booking.confirmation_code } : undefined,
-        },
+        persona_id: m.personaId,
+        visit: forThisSearch
+          ? {
+              province,
+              needSummaryEn: result?.need_summary_en,
+              routeTitle: result?.rule.title,
+              routeSourceUrl: result?.rule.source_url,
+              booking: booking ? { facility_name: booking.facility_name, slot: booking.slot, confirmation_code: booking.confirmation_code } : undefined,
+            }
+          : { province },
       }),
     });
     if (!res.ok) return;
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
-    a.download = `careroute-summary-${member.personaId}.pdf`;
+    a.download = `careroute-summary-${m.personaId}.pdf`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  function startOver() {
-    setText("");
-    setChecklist({});
-    setResult(null);
-    setBooking(null);
-    setEmergency(null);
-    setScreen("home");
-  }
+  const showNav = !["onboard", "emergency", "loading", "book"].includes(screen);
 
-  const header = (
-    <header className="topbar">
-      <button className="brand" onClick={startOver} aria-label="CareRoute – home">
-        <span aria-hidden>➜</span> CareRoute
-      </button>
-      <label className="lang">
-        <span className="sr-only">{t.language}</span>
-        <select
-          value={lang}
-          onChange={(e) => {
-            setLang(e.target.value as Lang);
-            storage.setLang(e.target.value);
-          }}
-        >
-          <option value="en">English</option>
-          <option value="fr">Français</option>
-        </select>
-      </label>
-    </header>
-  );
-
-  const banner = screen !== "emergency" && (
-    <a className="emergency-banner" href="tel:911">
-      {t.emergencyBanner}
-    </a>
-  );
+  if (screen === "onboard")
+    return (
+      <Onboarding
+        t={t}
+        onStart={() => {
+          try {
+            localStorage.setItem("careroute.onboarded", "1");
+          } catch {
+            /* ignore */
+          }
+          setScreen("home");
+        }}
+      />
+    );
 
   return (
-    <>
-      {header}
-      {banner}
+    <div className={`app ${screen === "emergency" ? "app-emergency" : ""}`}>
+      <header className="topbar">
+        <div className="who">
+          <span className="avatar" aria-hidden>
+            {member.displayName ? initial(member.displayName) : "🙂"}
+          </span>
+          <span>
+            <span className="who-name">{member.displayName || t.hello}</span>
+            <span className="who-sub">{greeting}</span>
+          </span>
+        </div>
+        <label className="icon-btn" title={t.language}>
+          <span className="sr-only">{t.language}</span>
+          <span aria-hidden>🌐</span>
+          <select
+            value={lang}
+            onChange={(e) => {
+              setLang(e.target.value as Lang);
+              storage.setLang(e.target.value);
+            }}
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select>
+        </label>
+      </header>
+
+      {screen !== "emergency" && (
+        <a className="emergency-banner" href="tel:911">
+          {t.emergencyBanner}
+        </a>
+      )}
+
       <main>
         <div ref={live} tabIndex={-1} aria-live="polite" className="screen">
           {screen === "home" && (
-            <Home
-              t={t}
-              province={province}
-              onProvince={chooseProvince}
-              members={members}
-              memberId={memberId}
-              setMemberId={setMemberId}
-              guest={guest}
-              setGuest={setGuest}
-              onHousehold={() => setScreen("household")}
-              onHistory={() => setScreen("history")}
-              onContinue={() => setScreen("check")}
-            />
+            <section>
+              <h1 className="hero-title">{t.heroTitle}</h1>
+              <button className="search" onClick={() => startSearch(text)}>
+                <span aria-hidden>🔍</span>
+                <span className="search-ph">{text || t.searchPlaceholder}</span>
+              </button>
+
+              <div className="segmented" role="group" aria-label={t.province}>
+                {ENABLED_PROVINCES.map((p) => (
+                  <button key={p.code} className={province === p.code ? "on" : ""} aria-pressed={province === p.code} onClick={() => chooseProvince(p.code)}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+
+              <SectionHead title={t.categories} />
+              <div className="cat-scroll">
+                {(
+                  [
+                    ["💊", t.catRenewal, t.exRenewal],
+                    ["🧪", t.catLab, t.exLab],
+                    ["🩹", t.catSymptom, t.exMinor],
+                    ["📹", t.catVirtual, t.catVirtualText],
+                    ["👩‍⚕️", t.catDoctor, t.catDoctorText],
+                  ] as [string, string, string][]
+                ).map(([icon, label, prefill], i) => (
+                  <button key={label} className={`cat ${i === 0 ? "cat-primary" : ""}`} onClick={() => startSearch(prefill)}>
+                    <span className="cat-icon" aria-hidden>
+                      {icon}
+                    </span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <SectionHead title={t.whoNeedsCare} action={t.myHousehold} onAction={() => setScreen("household")} />
+              <div className="people">
+                <PersonChip label={t.me} sub={t[guest.ageGroup]} on={memberId === null} onClick={() => setMemberId(null)} />
+                {members.map((m) => (
+                  <PersonChip key={m.id} label={m.displayName} sub={t[m.ageGroup]} on={memberId === m.id} onClick={() => setMemberId(m.id)} />
+                ))}
+                <button className="person person-add" onClick={() => setScreen("household")}>
+                  <span className="avatar avatar-lg avatar-add" aria-hidden>
+                    +
+                  </span>
+                  <span className="person-name">{t.addPerson}</span>
+                </button>
+              </div>
+
+              {memberId === null && (
+                <div className="card">
+                  <MemberQuestions t={t} m={guest} onChange={setGuest} />
+                </div>
+              )}
+
+              <button className="btn" onClick={() => startSearch()}>
+                {t.continue} →
+              </button>
+            </section>
           )}
 
           {screen === "household" && (
@@ -300,7 +392,7 @@ export default function CareRouteApp() {
                 if (v) storage.saveHousehold(household);
                 else setHistory([]);
               }}
-              onSave={(h) => saveHousehold(h)}
+              onSave={saveHousehold}
               onDemo={() => saveHousehold({ ...household, members: DEMO[province] })}
               onDone={() => setScreen("home")}
             />
@@ -308,41 +400,42 @@ export default function CareRouteApp() {
 
           {screen === "check" && (
             <section>
+              <BackLink t={t} onClick={() => setScreen("home")} />
               <h1>{t.checkTitle}</h1>
               <p>{t.checkIntro}</p>
               <div className="stack">
                 {(
                   [
-                    ["chest_pain", t.flagChest, "❤"],
+                    ["chest_pain", t.flagChest, "❤️"],
                     ["breathing", t.flagBreathing, "🫁"],
                     ["stroke_signs", t.flagStroke, "🧠"],
                     ["severe_bleeding", t.flagBleeding, "🩸"],
                     ["suicidal_thoughts", t.flagSuicide, "💬"],
-                    ...(member.ageGroup === "infant" ? [["infant_fever", t.flagInfantFever, "🌡"]] : []),
+                    ...(member.ageGroup === "infant" ? [["infant_fever", t.flagInfantFever, "🌡️"]] : []),
                   ] as [RedFlagCategory, string, string][]
                 ).map(([c, label, icon]) => (
-                  <button key={c} className="btn btn-flag" onClick={() => flag(c)}>
-                    <span aria-hidden className="icon">{icon}</span> {label}
+                  <button key={c} className="flag" onClick={() => flag(c)}>
+                    <span className="flag-icon" aria-hidden>
+                      {icon}
+                    </span>
+                    {label}
                   </button>
                 ))}
               </div>
               <button className="btn" onClick={() => setScreen("need")}>
-                {t.noneOfThese}
-              </button>
-              <button className="btn btn-ghost" onClick={() => setScreen("home")}>
-                {t.back}
+                ✓ {t.noneOfThese}
               </button>
             </section>
           )}
 
           {screen === "need" && (
             <section>
+              <BackLink t={t} onClick={() => setScreen("check")} />
               <h1>{t.needTitle}</h1>
               <label htmlFor="need" className="help">
                 {t.needHelp}
               </label>
               <textarea id="need" rows={5} value={text} placeholder={t.needPlaceholder} onChange={(e) => setText(e.target.value)} />
-              <p className="label">{t.examples}</p>
               <div className="chips">
                 {[t.exRenewal, t.exLab, t.exMinor].map((ex) => (
                   <button key={ex} className="chip" onClick={() => setText(ex)}>
@@ -350,8 +443,8 @@ export default function CareRouteApp() {
                   </button>
                 ))}
               </div>
-              <h2>{t.location}</h2>
-              <button className="btn btn-secondary" onClick={askLocation} aria-pressed={locStatus === "on"}>
+              <SectionHead title={t.location} />
+              <button className={`btn btn-soft ${locStatus === "on" ? "is-on" : ""}`} onClick={askLocation} aria-pressed={locStatus === "on"}>
                 📍 {locStatus === "on" ? t.locationOn : t.useMyLocation}
               </button>
               <label className="label" htmlFor="city">
@@ -364,10 +457,7 @@ export default function CareRouteApp() {
                 ))}
               </select>
               <button className="btn" disabled={!text.trim()} onClick={() => submit()}>
-                {t.findCare}
-              </button>
-              <button className="btn btn-ghost" onClick={() => setScreen("check")}>
-                {t.back}
+                {t.findCare} →
               </button>
             </section>
           )}
@@ -375,7 +465,7 @@ export default function CareRouteApp() {
           {screen === "loading" && (
             <section className="center">
               <div className="spinner" aria-hidden />
-              <p>{t.thinking}</p>
+              <p className="big">{t.thinking}</p>
             </section>
           )}
 
@@ -398,151 +488,221 @@ export default function CareRouteApp() {
           {screen === "result" && result && (
             <Result
               t={t}
+              loc={loc}
               result={result}
-              member={member}
-              booking={booking}
-              onChoose={setPending}
-              onSummary={downloadSummary}
-              onStartOver={startOver}
+              onChoose={(o) => {
+                setChosen(o);
+                setScreen("book");
+              }}
               onNeedLocation={() => setScreen("need")}
             />
+          )}
+
+          {screen === "book" && chosen && result && (
+            <BookScreen t={t} loc={loc} option={chosen} waitsSource={result.er_waits_source} onBack={() => setScreen("result")} onConfirm={confirmBooking} />
+          )}
+
+          {screen === "booked" && booking && (
+            <section>
+              <div className="card card-booked" role="status">
+                <span className="badge">{t.simulated}</span>
+                <h1>✅ {t.booked}</h1>
+                <p className="big">
+                  <strong>{booking.facility_name}</strong>
+                  <br />
+                  <span className="muted">{booking.facility_address}</span>
+                </p>
+                <div className="stats">
+                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })} label={t.selectDate} />
+                  <Stat icon="🕒" value={new Date(booking.slot).toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" })} label={t.time} />
+                  <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />
+                </div>
+                <p>
+                  <strong>{t.bring}:</strong> {booking.instructions}
+                </p>
+              </div>
+              <SummaryCard t={t} member={member} onDownload={() => downloadSummary(member)} />
+              <button className="btn btn-ghost" onClick={() => setScreen("result")}>
+                ← {t.back}
+              </button>
+            </section>
           )}
 
           {screen === "history" && (
             <section>
               <h1>{t.myHistory}</h1>
               {!consent && <p className="help">{t.consentHelp}</p>}
-              {history.length === 0 && <p>{t.historyEmpty}</p>}
+              {history.length === 0 && <p className="muted">{t.historyEmpty}</p>}
               <ul className="list">
-                {history.map((h) => (
-                  <li key={h.id} className="card">
-                    <strong>{h.route === "emergency" ? "🚨 911 / 811" : t.routeNames[h.route] ?? h.route}</strong>
-                    <div className="muted">
-                      {new Date(h.createdAt).toLocaleString(lang === "fr" ? "fr-CA" : "en-CA")} · {h.province}
-                      {members.find((m) => m.id === h.memberId) ? ` · ${members.find((m) => m.id === h.memberId)!.displayName}` : ""}
-                    </div>
-                    {h.route !== "emergency" && <p>{h.reason}</p>}
-                    {h.sourceUrl && (
-                      <a href={h.sourceUrl} target="_blank" rel="noreferrer">
-                        {t.source}
-                      </a>
-                    )}
-                    {h.bookingCode && <div className="badge">{t.simulated} · {h.bookingCode}</div>}
-                  </li>
-                ))}
+                {history.map((h) => {
+                  const who = members.find((m) => m.id === h.memberId)?.displayName;
+                  return (
+                    <li key={h.id} className="card history-item">
+                      <span className={`tile ${h.route === "emergency" ? "tile-danger" : ""}`} aria-hidden>
+                        {h.route === "emergency" ? "🚨" : ROUTE_ICON[h.route] ?? "•"}
+                      </span>
+                      <div>
+                        <strong>{h.route === "emergency" ? "911 / 988 / 811" : t.routeNames[h.route] ?? h.route}</strong>
+                        <div className="muted small">
+                          {new Date(h.createdAt).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" })} · {h.province}
+                          {who ? ` · ${who}` : ""}
+                        </div>
+                        {h.route !== "emergency" && <p className="small">{h.reason}</p>}
+                        <div className="row">
+                          {h.sourceUrl && (
+                            <a className="link-small" href={h.sourceUrl} target="_blank" rel="noreferrer">
+                              {t.source} ↗
+                            </a>
+                          )}
+                          {h.bookingCode && <span className="badge">{t.simulated} · {h.bookingCode}</span>}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-              <button className="btn btn-ghost" onClick={() => setScreen("home")}>
-                {t.back}
-              </button>
+            </section>
+          )}
+
+          {screen === "records" && (
+            <section>
+              <h1>{t.recordsTitle}</h1>
+              <p className="muted">{t.summaryBody}</p>
+              {members.filter((m) => m.personaId).length === 0 && <p>{t.recordsEmpty}</p>}
+              <ul className="list">
+                {members
+                  .filter((m) => m.personaId)
+                  .map((m) => (
+                    <li key={m.id} className="card row-between">
+                      <span className="row-center">
+                        <span className="avatar" aria-hidden>
+                          {initial(m.displayName)}
+                        </span>
+                        <span>
+                          <strong>{m.displayName}</strong>
+                          <span className="muted small block">{t[m.ageGroup]}</span>
+                        </span>
+                      </span>
+                      <button className="btn-small" onClick={() => downloadSummary(m)}>
+                        📄 PDF
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+              {members.filter((m) => m.personaId).length === 0 && (
+                <button className="btn btn-soft" onClick={() => setScreen("household")}>
+                  👪 {t.myHousehold}
+                </button>
+              )}
             </section>
           )}
 
           {screen === "error" && (
             <section>
-              <h1>⚠</h1>
-              <p className="big">{error}</p>
-              <a className="btn btn-secondary" href="tel:811">
-                {t.call811}
+              <h1>⚠️</h1>
+              <p className="big">{error || t.errorGeneric}</p>
+              <a className="btn btn-soft" href="tel:811">
+                📞 {t.call811}
               </a>
               <button className="btn btn-ghost" onClick={() => setScreen("need")}>
-                {t.back}
+                ← {t.back}
               </button>
             </section>
           )}
         </div>
+        <footer>
+          <p>{t.notAdvice}</p>
+          <p className="muted small">{t.attribution}</p>
+        </footer>
       </main>
 
-      {pending && (
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="approve-title">
-          <div className="modal-body">
-            <h2 id="approve-title">{t.approveTitle}</h2>
-            <p className="big">
-              <strong>{pending.name}</strong>
-              <br />
-              {fullAddress(pending)}
-            </p>
-            <p>
-              <span className="badge">{t.simulated}</span> {t.approveBody}
-            </p>
-            <button className="btn" onClick={confirmBooking}>
-              {t.approveYes}
-            </button>
-            <button className="btn btn-ghost" onClick={() => setPending(null)}>
-              {t.approveNo}
-            </button>
-          </div>
-        </div>
+      {showNav && (
+        <nav className="bottom-nav" aria-label="Main">
+          <NavBtn icon="🏠" label={t.navHome} on={screen === "home"} onClick={() => setScreen("home")} />
+          <NavBtn icon="🕘" label={t.navHistory} on={screen === "history"} onClick={() => setScreen("history")} />
+          <button className="fab" aria-label={t.navNew} onClick={() => startSearch("")}>
+            +
+          </button>
+          <NavBtn icon="👪" label={t.navFamily} on={screen === "household"} onClick={() => setScreen("household")} />
+          <NavBtn icon="📄" label={t.navRecords} on={screen === "records"} onClick={() => setScreen("records")} />
+        </nav>
       )}
-
-      <footer>
-        <p>{t.notAdvice}</p>
-        <p className="muted">{t.attribution}</p>
-      </footer>
-    </>
+    </div>
   );
 }
 
-/* ───────────────────────── screens ───────────────────────── */
+/* ───────────────────────── small pieces ───────────────────────── */
 
-function Home(props: {
-  t: Strings;
-  province: ProvinceCode;
-  onProvince: (p: ProvinceCode) => void;
-  members: HouseholdMember[];
-  memberId: string | null;
-  setMemberId: (id: string | null) => void;
-  guest: HouseholdMember;
-  setGuest: (m: HouseholdMember) => void;
-  onHousehold: () => void;
-  onHistory: () => void;
-  onContinue: () => void;
-}) {
-  const { t, province, members, memberId, guest } = props;
+function SectionHead({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   return (
-    <section>
-      <h1>{t.appTagline}</h1>
-      <h2>{t.province}</h2>
-      <div className="row">
-        {ENABLED_PROVINCES.map((p) => (
-          <button key={p.code} className={`btn btn-toggle ${province === p.code ? "on" : ""}`} aria-pressed={province === p.code} onClick={() => props.onProvince(p.code)}>
-            {p.name}
-          </button>
-        ))}
-      </div>
-
-      <h2>{t.whoNeedsCare}</h2>
-      <div className="chips">
-        <button className={`chip ${memberId === null ? "on" : ""}`} aria-pressed={memberId === null} onClick={() => props.setMemberId(null)}>
-          {t.me}
+    <div className="section-head">
+      <h2>{title}</h2>
+      {action && (
+        <button className="link-btn" onClick={onAction}>
+          {action}
         </button>
-        {members.map((m) => (
-          <button key={m.id} className={`chip ${memberId === m.id ? "on" : ""}`} aria-pressed={memberId === m.id} onClick={() => props.setMemberId(m.id)}>
-            {m.displayName} · {t[m.ageGroup]}
-          </button>
-        ))}
-        <button className="chip chip-add" onClick={props.onHousehold}>
-          + {t.addPerson}
-        </button>
-      </div>
-
-      {memberId === null && (
-        <>
-          <MemberQuestions t={t} m={guest} onChange={props.setGuest} />
-        </>
       )}
+    </div>
+  );
+}
 
-      <button className="btn" onClick={props.onContinue}>
-        {t.continue}
-      </button>
-      <div className="row">
-        <button className="btn btn-ghost" onClick={props.onHousehold}>
-          👪 {t.myHousehold}
+function BackLink({ t, onClick }: { t: Strings; onClick: () => void }) {
+  return (
+    <button className="back" onClick={onClick} aria-label={t.back}>
+      ←
+    </button>
+  );
+}
+
+function PersonChip({ label, sub, on, onClick }: { label: string; sub: string; on: boolean; onClick: () => void }) {
+  sub = sub.replace(/\s*\(.*\)\s*$/, "");
+  return (
+    <button className={`person ${on ? "on" : ""}`} aria-pressed={on} onClick={onClick}>
+      <span className="avatar avatar-lg" aria-hidden>
+        {initial(label)}
+      </span>
+      <span className="person-name">{label}</span>
+      <span className="person-sub">{sub}</span>
+    </button>
+  );
+}
+
+function NavBtn({ icon, label, on, onClick }: { icon: string; label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button className={`nav-btn ${on ? "on" : ""}`} aria-current={on ? "page" : undefined} onClick={onClick}>
+      <span aria-hidden>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function Stat({ icon, value, label }: { icon: string; value: string; label: string }) {
+  return (
+    <div className="stat">
+      <span className="stat-icon" aria-hidden>
+        {icon}
+      </span>
+      <span>
+        <span className="stat-value">{value}</span>
+        <span className="stat-label">{label}</span>
+      </span>
+    </div>
+  );
+}
+
+function SummaryCard({ t, member, onDownload }: { t: Strings; member: HouseholdMember; onDownload: () => void }) {
+  return (
+    <div className="card">
+      <h2>📄 {t.summaryTitle}</h2>
+      <p className="muted">{t.summaryBody}</p>
+      {member.personaId ? (
+        <button className="btn btn-soft" onClick={onDownload}>
+          {t.downloadSummary}
         </button>
-        <button className="btn btn-ghost" onClick={props.onHistory}>
-          🕘 {t.myHistory}
-        </button>
-      </div>
-    </section>
+      ) : (
+        <p className="muted small">{t.noRecord}</p>
+      )}
+    </div>
   );
 }
 
@@ -550,15 +710,15 @@ function MemberQuestions({ t, m, onChange }: { t: Strings; m: HouseholdMember; o
   return (
     <>
       <p className="label">{t.ageGroup}</p>
-      <div className="row">
+      <div className="segmented segmented-3">
         {(["infant", "child", "adult"] as AgeGroup[]).map((a) => (
-          <button key={a} className={`btn btn-toggle ${m.ageGroup === a ? "on" : ""}`} aria-pressed={m.ageGroup === a} onClick={() => onChange({ ...m, ageGroup: a })}>
+          <button key={a} className={m.ageGroup === a ? "on" : ""} aria-pressed={m.ageGroup === a} onClick={() => onChange({ ...m, ageGroup: a })}>
             {t[a]}
           </button>
         ))}
       </div>
       <p className="label">{t.familyDoctor}</p>
-      <div className="row">
+      <div className="segmented segmented-3">
         {(
           [
             ["yes", t.yes],
@@ -566,12 +726,43 @@ function MemberQuestions({ t, m, onChange }: { t: Strings; m: HouseholdMember; o
             ["hard_to_access", t.hardToReach],
           ] as [HouseholdMember["hasFamilyDoctor"], string][]
         ).map(([v, label]) => (
-          <button key={v} className={`btn btn-toggle ${m.hasFamilyDoctor === v ? "on" : ""}`} aria-pressed={m.hasFamilyDoctor === v} onClick={() => onChange({ ...m, hasFamilyDoctor: v })}>
+          <button key={v} className={m.hasFamilyDoctor === v ? "on" : ""} aria-pressed={m.hasFamilyDoctor === v} onClick={() => onChange({ ...m, hasFamilyDoctor: v })}>
             {label}
           </button>
         ))}
       </div>
     </>
+  );
+}
+
+function Onboarding({ t, onStart }: { t: Strings; onStart: () => void }) {
+  return (
+    <div className="onboard">
+      <div className="onboard-deco" aria-hidden />
+      <p className="onboard-brand">
+        <span aria-hidden>➜</span> {t.onboardBrand}
+      </p>
+      <h1>{t.onboardTitle}</h1>
+      <div className="onboard-card">
+        <h2>{t.onboardCard}</h2>
+        <div className="onboard-icons" aria-hidden>
+          <span>💊</span>
+          <span>🏥</span>
+          <span>📹</span>
+          <span>📞</span>
+        </div>
+        <p>{t.onboardBody}</p>
+      </div>
+      <button className="onboard-go" onClick={onStart} aria-label={t.getStarted}>
+        <span>{t.getStarted}</span>
+        <span className="onboard-arrow" aria-hidden>
+          ↗
+        </span>
+      </button>
+      <a className="onboard-911" href="tel:911">
+        {t.emergencyBanner}
+      </a>
+    </div>
   );
 }
 
@@ -589,29 +780,32 @@ function HouseholdEditor(props: {
   const { t, household, personas } = props;
   const blank: HouseholdMember = { id: "", displayName: "", ageGroup: "adult", hasFamilyDoctor: "no" };
   const [draft, setDraft] = useState<HouseholdMember | null>(null);
-  const valid = draft && draft.displayName.trim();
 
   return (
     <section>
       <h1>{t.myHousehold}</h1>
-      <label className="consent">
+      <label className="consent card">
         <input type="checkbox" checked={props.consent} onChange={(e) => props.onConsent(e.target.checked)} />
         <span>
           {t.consent}
-          <br />
-          <span className="muted">{t.consentHelp}</span>
+          <span className="muted small block">{t.consentHelp}</span>
         </span>
       </label>
 
       <ul className="list">
         {household.members.map((m) => (
           <li key={m.id} className="card row-between">
-            <div>
-              <strong>{m.displayName}</strong>
-              <div className="muted">
-                {t[m.ageGroup]} · {m.hasFamilyDoctor === "yes" ? t.yes : m.hasFamilyDoctor === "no" ? t.no : t.hardToReach}
-              </div>
-            </div>
+            <span className="row-center">
+              <span className="avatar" aria-hidden>
+                {initial(m.displayName)}
+              </span>
+              <span>
+                <strong>{m.displayName}</strong>
+                <span className="muted small block">
+                  {t[m.ageGroup]} · {m.hasFamilyDoctor === "yes" ? t.yes : m.hasFamilyDoctor === "no" ? t.no : t.hardToReach}
+                </span>
+              </span>
+            </span>
             <button className="btn-small" onClick={() => props.onSave({ ...household, members: household.members.filter((x) => x.id !== m.id) })}>
               {t.remove}
             </button>
@@ -643,9 +837,9 @@ function HouseholdEditor(props: {
           </select>
           <button
             className="btn"
-            disabled={!valid}
+            disabled={!draft.displayName.trim()}
             onClick={() => {
-              props.onSave({ ...household, members: [...household.members, { ...draft!, id: uid() }] });
+              props.onSave({ ...household, members: [...household.members, { ...draft, id: uid() }] });
               setDraft(null);
             }}
           >
@@ -657,7 +851,7 @@ function HouseholdEditor(props: {
         </div>
       ) : (
         <>
-          <button className="btn btn-secondary" onClick={() => setDraft(blank)}>
+          <button className="btn btn-soft" onClick={() => setDraft(blank)}>
             + {t.addPerson}
           </button>
           <button className="btn btn-ghost" onClick={props.onDemo}>
@@ -668,7 +862,7 @@ function HouseholdEditor(props: {
 
       {props.consent && (
         <button
-          className="btn-small"
+          className="link-btn danger"
           onClick={() => {
             storage.clearAll();
             props.onConsent(false);
@@ -685,16 +879,18 @@ function HouseholdEditor(props: {
 }
 
 function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; onBack: () => void }) {
+  const body = action === "call_911" ? t.emergency911Body : action === "call_911_or_988" ? t.emergency988Body : t.emergency811Body;
   return (
     <section className="emergency">
-      <h1>🚨 {t.emergencyTitle}</h1>
+      <div className="emergency-icon" aria-hidden>
+        🚨
+      </div>
+      <h1>{t.emergencyTitle}</h1>
+      <p className="big">{body}</p>
       {action === "call_911" && (
-        <>
-          <a className="btn btn-danger" href="tel:911">
-            📞 {t.call911}
-          </a>
-          <p className="big">{t.emergency911Body}</p>
-        </>
+        <a className="btn btn-danger" href="tel:911">
+          📞 {t.call911}
+        </a>
       )}
       {action === "call_911_or_988" && (
         <>
@@ -704,7 +900,6 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
           <a className="btn btn-danger-outline" href="tel:911">
             {t.call911}
           </a>
-          <p className="big">{t.emergency988Body}</p>
         </>
       )}
       {action === "call_811" && (
@@ -715,10 +910,9 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
           <a className="btn btn-danger-outline" href="tel:911">
             {t.call911}
           </a>
-          <p className="big">{t.emergency811Body}</p>
         </>
       )}
-      <p className="muted">{t.safetyRuleNote}</p>
+      <p className="muted small">{t.safetyRuleNote}</p>
       <button className="btn btn-ghost" onClick={onBack}>
         {t.emergencyBack}
       </button>
@@ -726,179 +920,247 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
   );
 }
 
-function Result(props: {
-  t: Strings;
-  result: RouteResult;
-  member: HouseholdMember;
-  booking: Booking | null;
-  onChoose: (f: RouteResult["facilities"][number]) => void;
-  onSummary: () => void;
-  onStartOver: () => void;
-  onNeedLocation: () => void;
-}) {
-  const { t, result: r, booking } = props;
+function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose: (o: Option) => void; onNeedLocation: () => void }) {
+  const { t, result: r } = props;
   const rtl = ["ar", "fa", "ur", "he"].includes(r.language.slice(0, 2));
-  const actions = useMemo(() => routeAction(r, t), [r, t]);
+  const action = useMemo(() => routeAction(r, t), [r, t]);
 
   return (
     <section>
-      {booking && (
-        <div className="card card-booked" role="status">
-          <span className="badge">{t.simulated}</span>
-          <h2>✅ {t.booked}</h2>
-          <p className="big">
-            <strong>{booking.facility_name}</strong>
-            <br />
-            {booking.facility_address}
-          </p>
-          <p>
-            {t.time}: {new Date(booking.slot).toLocaleString()}
-            <br />
-            {t.confirmation}: <strong>{booking.confirmation_code}</strong>
-          </p>
-          <p>
-            {t.bring}: {booking.instructions}
-          </p>
+      <div className="route-hero">
+        <p className="route-eyebrow">{t.yourRoute}</p>
+        <div className="row-center">
+          <span className="route-icon" aria-hidden>
+            {ROUTE_ICON[r.rule.route] ?? "➜"}
+          </span>
+          <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
         </div>
-      )}
-
-      <p className="label">{t.yourRoute}</p>
-      <div className="card card-route">
-        <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
-        <p className="label">{t.why}</p>
-        <p className="big" dir={rtl ? "rtl" : "auto"} lang={r.language}>
+        <p className="route-why-label">{t.why}</p>
+        <p className="route-reason" dir={rtl ? "rtl" : "auto"} lang={r.language}>
           {r.reason}
         </p>
-        <p dir={rtl ? "rtl" : "auto"} lang={r.language}>
+        <p className="route-msg" dir={rtl ? "rtl" : "auto"} lang={r.language}>
           {r.message}
         </p>
-        <p className="source">
-          {t.source}:{" "}
-          <a href={r.rule.source_url} target="_blank" rel="noreferrer">
-            {r.rule.sources[0]?.title ?? r.rule.title}
-          </a>
-        </p>
-        {actions}
+        <a className="route-source" href={r.rule.source_url} target="_blank" rel="noreferrer">
+          {t.source}: {r.rule.sources[0]?.title ?? r.rule.title} ↗
+        </a>
+        {action}
       </div>
 
       {r.registry && (
-        <div className="card">
-          <h2>{t.alsoDoctor}</h2>
-          <p className="source">
-            {t.source}:{" "}
-            <a href={r.registry.source_url} target="_blank" rel="noreferrer">
-              {r.registry.sources[0]?.title ?? r.registry.title}
-            </a>
-          </p>
-          <a className="btn btn-secondary" href={r.registry.source_url} target="_blank" rel="noreferrer">
-            {t.routeNames.registry} ↗
-          </a>
-        </div>
+        <a className="card registry" href={r.registry.source_url} target="_blank" rel="noreferrer">
+          <span className="tile" aria-hidden>
+            👩‍⚕️
+          </span>
+          <span>
+            <strong>{t.alsoDoctor}</strong>
+            <span className="muted small block">
+              {t.source}: {r.registry.sources[0]?.title ?? r.registry.title} ↗
+            </span>
+          </span>
+        </a>
       )}
 
       {r.facility_kind && (
         <>
-          <h2>{t.options}</h2>
+          <SectionHead title={r.facility_kind === "virtual" ? t.catVirtual : t.options} />
           {r.location_needed && (
-            <>
+            <div className="card">
               <p>{t.shareLocationForOptions}</p>
-              <button className="btn btn-secondary" onClick={props.onNeedLocation}>
+              <button className="btn btn-soft" onClick={props.onNeedLocation}>
                 📍 {t.useMyLocation}
               </button>
-            </>
+            </div>
           )}
           <ul className="list">
             {r.facilities.map((f) => (
-              <li key={f.id} className="card">
-                <div className="row-between">
-                  <strong>{f.name}</strong>
-                  {typeof f.distance_km === "number" && (
-                    <span className="pill">
-                      {f.distance_km} {t.km}
-                    </span>
-                  )}
-                </div>
-                <div className="muted">
-                  {t.kindNames[f.kind] ?? f.kind} · {fullAddress(f)}
-                </div>
-                {f.hours && (
-                  <div className="muted small">
-                    {t.open}: {f.hours.slice(0, 140)}
-                  </div>
-                )}
-                {f.languages && <div className="muted small">🗣 {f.languages}</div>}
-                {f.accepts_walk_in === "unknown" && <div className="small warn">{t.walkInUnknown}</div>}
-                {typeof f.wait_minutes === "number" && r.er_waits_source && (
-                  <div className="wait">
-                    ⏱ {t.estWait}: {Math.floor(f.wait_minutes / 60)} h {f.wait_minutes % 60} {t.min}
-                    <div className="muted small">
-                      {t.waitSource}{" "}
-                      <a href={r.er_waits_source.url} target="_blank" rel="noreferrer">
-                        {r.er_waits_source.name}
-                      </a>{" "}
-                      ({new Date(r.er_waits_source.refreshed_at).toLocaleString()})
-                    </div>
-                  </div>
-                )}
-                <div className="row">
-                  {f.phone && (
-                    <a className="btn-small" href={`tel:${f.phone.replace(/[^\d+]/g, "")}`}>
-                      📞 {t.callNumber}
-                    </a>
-                  )}
-                  <a className="btn-small" href={`https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}`} target="_blank" rel="noreferrer">
-                    🗺 Map
-                  </a>
-                  <a className="btn-small" href={f.source_url} target="_blank" rel="noreferrer" title={f.source}>
-                    {t.source}
-                  </a>
-                </div>
-                {!booking && (
-                  <button className="btn" onClick={() => props.onChoose(f)}>
-                    {t.choose}
-                  </button>
-                )}
-              </li>
+              <OptionCard key={f.id} t={t} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} />
             ))}
           </ul>
         </>
       )}
+    </section>
+  );
+}
 
-      <div className="card">
-        <h2>📄 {t.summaryTitle}</h2>
-        <p>{t.summaryBody}</p>
-        {props.member.personaId ? (
-          <button className="btn btn-secondary" onClick={props.onSummary}>
-            {t.downloadSummary}
-          </button>
-        ) : (
-          <p className="muted">{t.noRecord}</p>
+function OptionCard({ t, f, waitsSource, onChoose }: { t: Strings; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void }) {
+  const virtual = f.kind === "virtual";
+  return (
+    <li className="card option">
+      <div className="option-head">
+        <span className="tile" aria-hidden>
+          {KIND_ICON[f.kind] ?? "🏥"}
+        </span>
+        <span className="option-title">
+          <strong>{f.name}</strong>
+          <span className="muted small block">{virtual ? (f.official ? `✓ ${t.official}` : t.kindNames.virtual) : t.kindNames[f.kind] ?? f.kind}</span>
+        </span>
+        {typeof f.distance_km === "number" && (
+          <span className="pill">
+            {f.distance_km} {t.km}
+          </span>
         )}
       </div>
 
-      <button className="btn btn-ghost" onClick={props.onStartOver}>
-        {t.startOver}
+      {virtual ? (
+        <>
+          <div className="modes">
+            {(f.modes ?? []).map((m) => (
+              <span key={m} className="mode">
+                {m === "video" ? `📹 ${t.video}` : m === "phone" ? `📞 ${t.phoneMode}` : `💬 ${t.chat}`}
+              </span>
+            ))}
+          </div>
+          <p className="small">{f.how}</p>
+          <p className="muted small">
+            🕒 {f.hours} · {f.cost}
+          </p>
+          {f.limits && (
+            <p className="small warn">
+              {t.limitsLabel}: {f.limits}
+            </p>
+          )}
+          {!f.official && <p className="small warn">{t.checkCoverage}</p>}
+        </>
+      ) : (
+        <>
+          <p className="muted small">{fullAddress(f)}</p>
+          {typeof f.wait_minutes === "number" && waitsSource && (
+            <div className="wait-row">
+              <span className="wait-big">{fmtWait(f.wait_minutes, t)}</span>
+              <span className="muted small">
+                {t.estWait} ·{" "}
+                <a href={waitsSource.url} target="_blank" rel="noreferrer">
+                  {waitsSource.name}
+                </a>
+              </span>
+            </div>
+          )}
+          {f.hours && <p className="muted small">🕒 {f.hours.slice(0, 120)}</p>}
+          {f.languages && <p className="muted small">🗣 {f.languages}</p>}
+          {f.accepts_walk_in === "unknown" && <p className="small warn">{t.walkInUnknown}</p>}
+        </>
+      )}
+
+      <div className="option-actions">
+        {f.phone && (
+          <a className="btn-outline" href={`tel:${f.phone.replace(/[^\d+]/g, "")}`}>
+            📞 {t.callNumber}
+          </a>
+        )}
+        {virtual ? (
+          f.website && (
+            <a className="btn-outline" href={f.website} target="_blank" rel="noreferrer">
+              🌐 {t.website}
+            </a>
+          )
+        ) : (
+          <a className="btn-outline" href={`https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}`} target="_blank" rel="noreferrer">
+            🗺 {t.directions}
+          </a>
+        )}
+        {virtual && f.phone === "811" ? (
+          <a className="round-go" href="tel:811" aria-label={`${t.call811}: ${f.name}`}>
+            📞
+          </a>
+        ) : (
+          <button className="round-go" onClick={onChoose} aria-label={`${t.choose}: ${f.name}`}>
+            ↗
+          </button>
+        )}
+      </div>
+      <a className="link-small" href={f.source_url} target="_blank" rel="noreferrer">
+        {t.source}: {f.source_title ?? f.source} ↗
+      </a>
+    </li>
+  );
+}
+
+function BookScreen(props: { t: Strings; loc: string; option: Option; waitsSource?: RouteResult["er_waits_source"]; onBack: () => void; onConfirm: (slot: Date) => void }) {
+  const { t, loc, option: f } = props;
+  const dayList = useMemo(() => days(7), []);
+  // Open on the first day that still has free times (late in the evening, today has none).
+  const [day, setDay] = useState(() => Math.max(0, dayList.findIndex((d) => slots(d).length > 0)));
+  const [slot, setSlot] = useState<Date | null>(null);
+  const times = useMemo(() => slots(dayList[day]), [dayList, day]);
+  const virtual = f.kind === "virtual";
+
+  return (
+    <section className="book">
+      <div className="book-hero">
+        <button className="back back-light" onClick={props.onBack} aria-label={t.back}>
+          ←
+        </button>
+        <span className="book-tile" aria-hidden>
+          {KIND_ICON[f.kind] ?? "🏥"}
+        </span>
+        <h1>{f.name}</h1>
+        <p>{virtual ? f.how : fullAddress(f)}</p>
+      </div>
+
+      <div className="card stats">
+        {virtual ? (
+          <>
+            <Stat icon="📹" value={(f.modes ?? []).map((m) => (m === "video" ? t.video : m === "phone" ? t.phoneMode : t.chat)).join(" · ")} label={t.modes} />
+            <Stat icon="🕒" value={f.hours} label={t.hoursLabel} />
+          </>
+        ) : (
+          <>
+            {typeof f.distance_km === "number" && <Stat icon="📍" value={`${f.distance_km} ${t.km}`} label={t.distance} />}
+            {typeof f.wait_minutes === "number" && <Stat icon="⏱" value={fmtWait(f.wait_minutes, t)} label={t.wait} />}
+            {f.languages && <Stat icon="🗣" value={f.languages.split(",").slice(0, 2).join(", ")} label={t.languagesLabel} />}
+          </>
+        )}
+      </div>
+
+      <div className="section-head">
+        <h2>{t.selectDate}</h2>
+        <span className="muted small">{dayList[day].toLocaleDateString(loc, { month: "long" })}</span>
+      </div>
+      <div className="date-scroll" role="radiogroup" aria-label={t.selectDate}>
+        {dayList.map((d, i) => (
+          <button key={i} role="radio" disabled={slots(d).length === 0} aria-checked={day === i} className={`date ${day === i ? "on" : ""}`} onClick={() => { setDay(i); setSlot(null); }}>
+            <span className="date-num">{d.getDate()}</span>
+            <span className="date-day">{i === 0 ? t.today : d.toLocaleDateString(loc, { weekday: "short" })}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="section-head">
+        <h2>{t.selectTime}</h2>
+      </div>
+      <div className="time-grid" role="radiogroup" aria-label={t.selectTime}>
+        {times.length === 0 && <p className="muted">—</p>}
+        {times.map((s) => (
+          <button key={s.toISOString()} role="radio" aria-checked={slot?.getTime() === s.getTime()} className={`time ${slot?.getTime() === s.getTime() ? "on" : ""}`} onClick={() => setSlot(s)}>
+            {s.toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" })}
+          </button>
+        ))}
+      </div>
+
+      <p className="small sim-note">
+        <span className="badge">{t.simulated}</span> {t.approveBody}
+      </p>
+      <button className="btn btn-book" disabled={!slot} onClick={() => slot && props.onConfirm(slot)}>
+        {virtual ? t.requestVisit : t.bookSimulated}
       </button>
     </section>
   );
 }
 
 function routeAction(r: RouteResult, t: Strings) {
-  switch (r.rule.route) {
-    case "call_811":
-      return (
-        <a className="btn" href="tel:811">
-          📞 {t.call811}
-        </a>
-      );
-    case "virtual_care":
-    case "registry":
-      return (
-        <a className="btn btn-secondary" href={r.rule.source_url} target="_blank" rel="noreferrer">
-          {t.routeNames[r.rule.route]} ↗
-        </a>
-      );
-    default:
-      return null;
-  }
+  if (r.rule.route === "call_811")
+    return (
+      <a className="btn btn-white" href="tel:811">
+        📞 {t.call811}
+      </a>
+    );
+  if (r.rule.route === "registry")
+    return (
+      <a className="btn btn-white" href={r.rule.source_url} target="_blank" rel="noreferrer">
+        {t.routeNames.registry} ↗
+      </a>
+    );
+  return null;
 }

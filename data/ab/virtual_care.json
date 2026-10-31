@@ -1,0 +1,71 @@
+{
+  "province": "AB",
+  "note": "Only services named by the cited sources. Coverage can change – the app tells users to confirm before booking.",
+  "services": [
+    {
+      "id": "ab-vc-811-virtual-md",
+      "name": "Health Link 811 – Virtual MD",
+      "modes": ["phone", "video"],
+      "how": "Call 8-1-1. After talking with a nurse, some callers are connected to a doctor by phone or video.",
+      "hours": "Health Link answers 24/7",
+      "cost": "Free for Albertans",
+      "phone": "811",
+      "url": "https://www.primarycarealberta.ca/page14176.aspx",
+      "official": true,
+      "source_title": "Health Link 811 – Primary Care Alberta",
+      "source_url": "https://www.primarycarealberta.ca/page14176.aspx"
+    },
+    {
+      "id": "ab-vc-telus-mycare",
+      "name": "TELUS Health MyCare",
+      "modes": ["video"],
+      "how": "Download the app and book a video appointment. Often same day.",
+      "hours": "See website",
+      "cost": "Listed as covered by Alberta Health Care – confirm before booking",
+      "phone": "",
+      "url": "https://www.telus.com/en/health/my-care",
+      "official": false,
+      "source_title": "Navigate Care Alberta – Unattached Patient Playbook",
+      "source_url": "https://navigatecareab.ca/guides/find-a-doctor"
+    },
+    {
+      "id": "ab-vc-maple",
+      "name": "Maple",
+      "modes": ["video", "chat"],
+      "how": "On-demand virtual visits in the app or on the web.",
+      "hours": "See website",
+      "cost": "Listed as covered by Alberta Health Care – confirm before booking",
+      "phone": "",
+      "url": "https://www.getmaple.ca/",
+      "official": false,
+      "source_title": "Navigate Care Alberta – Unattached Patient Playbook",
+      "source_url": "https://navigatecareab.ca/guides/find-a-doctor"
+    },
+    {
+      "id": "ab-vc-tiahealth",
+      "name": "Tiahealth",
+      "modes": ["video", "phone"],
+      "how": "Virtual walk-in visits, often within hours.",
+      "hours": "See website",
+      "cost": "Listed as covered by Alberta Health Care – confirm before booking",
+      "phone": "",
+      "url": "https://tiahealth.com/",
+      "official": false,
+      "source_title": "Navigate Care Alberta – Unattached Patient Playbook",
+      "source_url": "https://navigatecareab.ca/guides/find-a-doctor"
+    },
+    {
+      "id": "ab-vc-rocket-doctor",
+      "name": "Rocket Doctor",
+      "modes": ["video", "phone"],
+      "how": "Virtual visits with Alberta-licensed doctors. Can order labs, referrals and prescriptions.",
+      "hours": "See website",
+      "cost": "Listed as covered by Alberta Health Care – confirm before booking",
+      "phone": "",
+      "url": "https://rocketdoctor.ca/",
+      "official": false,
+      "source_title": "Navigate Care Alberta – Unattached Patient Playbook",
+      "source_url": "https://navigatecareab.ca/guides/find-a-doctor"
+    }
+  ]
+}

@@ -151,8 +151,8 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           break;
         case "find_facilities": {
           const kind = args.kind as FacilityKind;
-          if (!["pharmacy", "walk_in", "urgent_care"].includes(kind)) {
-            results.push(fail("kind must be pharmacy, walk_in or urgent_care"));
+          if (!["pharmacy", "walk_in", "urgent_care", "virtual"].includes(kind)) {
+            results.push(fail("kind must be pharmacy, walk_in, urgent_care or virtual"));
             break;
           }
           const out = findFacilities({
@@ -171,6 +171,7 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
               facilities: out.facilities.map((f) => ({
                 id: f.id, name: f.name, kind: f.kind, city: f.city, distance_km: f.distance_km,
                 hours: f.hours.slice(0, 160), accepts_walk_in: f.accepts_walk_in, languages: f.languages,
+                ...(f.kind === "virtual" ? { modes: f.modes, how: f.how, limits: f.limits, official: f.official } : {}),
               })),
             }),
           );
@@ -191,7 +192,7 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             break;
           }
           const kindArg = String(args.facility_kind || "none");
-          const kind = (["pharmacy", "walk_in", "urgent_care"].includes(kindArg) ? kindArg : null) as FacilityKind | null;
+          const kind = (["pharmacy", "walk_in", "urgent_care", "virtual"].includes(kindArg) ? kindArg : null) as FacilityKind | null;
           const ids = Array.isArray(args.facility_ids) ? (args.facility_ids as string[]) : [];
           let facilities = ids.map((id) => seenFacilities.get(id)).filter((f): f is Facility => !!f);
           if (kind && facilities.length === 0) facilities = [...seenFacilities.values()].slice(0, 5);

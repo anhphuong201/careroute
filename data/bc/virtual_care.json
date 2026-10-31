@@ -1,0 +1,20 @@
+{
+  "province": "BC",
+  "note": "Only services named by the cited sources.",
+  "services": [
+    {
+      "id": "bc-vc-811-physician",
+      "name": "HealthLink BC 8-1-1 – Virtual physician",
+      "modes": ["phone", "video"],
+      "how": "Call 8-1-1 and talk to a nurse. If needed, the nurse refers you to a doctor who calls you back by phone or video.",
+      "hours": "Doctors: 9 am – 11 pm, 7 days (nurses 24/7)",
+      "cost": "Free for B.C. residents",
+      "phone": "811",
+      "url": "https://www.healthlinkbc.ca/find-care/healthlink-bc-8-1-1-services/physician-services-healthlink-bc",
+      "official": true,
+      "limits": "Does not give regular prescription refills or sick notes.",
+      "source_title": "Physician services at HealthLink BC",
+      "source_url": "https://www.healthlinkbc.ca/find-care/healthlink-bc-8-1-1-services/physician-services-healthlink-bc"
+    }
+  ]
+}

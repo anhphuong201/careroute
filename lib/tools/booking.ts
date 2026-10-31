@@ -27,20 +27,31 @@ function nextSlot(now: Date): Date {
   return d;
 }
 
-export function bookAppointment(f: Facility, memberName: string, now = new Date()): Booking {
+/** A user-chosen slot must be in the future and within the next 7 days; otherwise we pick the next free one. */
+export function validSlot(iso: string | undefined, now = new Date()): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const t = d.getTime();
+  if (Number.isNaN(t) || t < now.getTime() || t > now.getTime() + 7 * 24 * 3600 * 1000) return null;
+  return d;
+}
+
+export function bookAppointment(f: Facility, memberName: string, now = new Date(), requested?: string): Booking {
   const code = "SIM-" + Math.random().toString(36).slice(2, 8).toUpperCase();
-  const slot = nextSlot(now);
+  const slot = validSlot(requested, now) ?? nextSlot(now);
   return {
     simulated: true,
     confirmation_code: code,
     facility_id: f.id,
     facility_name: f.name,
-    facility_address: f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address,
+    facility_address: f.kind === "virtual" ? (f.modes ?? []).join(" / ") : f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address,
     for_member: memberName,
     slot: slot.toISOString(),
     instructions:
-      f.kind === "pharmacy"
-        ? "Bring your health card and your medicine bottle or list."
-        : "Bring your health card, your medicine list and your CareRoute summary.",
+      f.kind === "virtual"
+        ? "Be somewhere quiet with your phone charged. Have your health card, medicine list and CareRoute summary ready. In real life, book on the service's own website or by phone."
+        : f.kind === "pharmacy"
+          ? "Bring your health card and your medicine bottle or list."
+          : "Bring your health card, your medicine list and your CareRoute summary.",
   };
 }

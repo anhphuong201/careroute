@@ -51,9 +51,9 @@ export const TOOLS: Tool[] = [
   {
     name: "find_facilities",
     description:
-      "Find the nearest options for the chosen route, sorted by distance from the user's location (the server knows the location). kind=walk_in also returns urgent care centres and clinics whose walk-in status is unknown.",
+      "Find options for the chosen route. pharmacy / walk_in / urgent_care are sorted by distance from the user's location (the server knows it); walk_in also returns urgent care centres and clinics whose walk-in status is unknown. kind=virtual returns the province's phone/video care services (official ones first).",
     parameters: obj({
-      kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care"] },
+      kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care", "virtual"] },
       limit: { type: "integer", description: "1–10, default 5." },
     }),
   },
@@ -71,8 +71,8 @@ export const TOOLS: Tool[] = [
       rule_id: { type: "string", description: "rule_id from search_care_rules for the main route." },
       reason: { type: "string", description: "ONE plain-language sentence, in the user's language, saying why this route fits. No diagnosis, no condition names." },
       message: { type: "string", description: "Up to 3 short sentences in the user's language: what to do next and what to bring. Grade 6 reading level." },
-      facility_kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care", "none"] },
-      facility_ids: { type: "array", items: { type: "string" }, description: "Up to 5 ids from find_facilities, best first. Empty if the route has no physical location (811, virtual care, registry, family doctor)." },
+      facility_kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care", "virtual", "none"] },
+      facility_ids: { type: "array", items: { type: "string" }, description: "Up to 5 ids from find_facilities, best first. Empty for 811, registry and family doctor routes." },
       registry_rule_id: { type: "string", description: "rule_id of the find-a-family-doctor rule when the person has no family doctor or it is hard to access, else an empty string." },
     }),
   },
