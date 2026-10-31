@@ -1,12 +1,11 @@
 /**
- * The CareRoute agent: a manual Claude tool-use loop with hard safety gates.
+ * The CareRoute agent: a manual tool-use loop (OpenAI or Claude, see lib/llm) with hard safety gates.
  *
  *  1. checkRedFlags(raw text, checklist, age)        ← rules, before any model call
  *  2. model → record_need → checkRedFlags(English)   ← rules again on the translation
  *  3. model → search_care_rules / find_facilities / check_er_waits / lookup_medication
  *  4. model → present_route → server validates rule_id + facility ids and attaches sources
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { checkRedFlags, type RedFlagAction, type RedFlagCategory } from "../safety/redFlags";
 import { PROVINCES, type ProvinceCode } from "../provinces";
 import { getRule, searchCareRules, type NeedType } from "../tools/careRules";
@@ -14,9 +13,10 @@ import { checkErWaits, findFacilities, type Facility, type FacilityKind } from "
 import { lookupMedication } from "../tools/medication";
 import { TOOLS } from "../tools/definitions";
 import { SYSTEM_PROMPT, userTurn } from "./prompt";
+import { defaultLlm } from "../llm";
+import type { LlmClient, Turn } from "../llm/types";
 import type { AgeGroup, CareRoute } from "../types";
 
-export const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
 const MAX_STEPS = 10;
 
 export interface AgentInput {
@@ -57,22 +57,12 @@ export type AgentResult =
     }
   | { type: "error"; message: string };
 
-/** Minimal client surface so tests can inject a scripted fake. */
-export interface MessagesClient {
-  create(params: Anthropic.Beta.MessageCreateParamsNonStreaming): Promise<Anthropic.Beta.BetaMessage>;
-}
-
-export function defaultClient(): MessagesClient {
-  const client = new Anthropic();
-  return { create: (p) => client.beta.messages.create(p) };
-}
-
 const toSourced = (province: ProvinceCode, id: string): SourcedRule | undefined => {
   const r = getRule(province, id);
   return r && { rule_id: r.id, route: r.route, title: r.title, source_url: r.source_url, sources: r.sources };
 };
 
-export async function runAgent(input: AgentInput, injected?: MessagesClient): Promise<AgentResult> {
+export async function runAgent(input: AgentInput, injected?: LlmClient): Promise<AgentResult> {
   const province = PROVINCES[input.province];
   if (!province?.enabled) return { type: "error", message: "Province not supported yet." };
   const text = (input.text ?? "").slice(0, 4000);
@@ -81,12 +71,12 @@ export async function runAgent(input: AgentInput, injected?: MessagesClient): Pr
   const flags = checkRedFlags({ text, checklist: input.checklist, ageMonths: input.ageMonths });
   if (flags.triggered) return { type: "emergency", action: flags.action, stage: "input" };
   if (!text.trim()) return { type: "clarify", question: "", language: "en" };
-  const client = injected ?? defaultClient(); // created only after gate 1, so emergencies work without an API key
+  const llm = injected ?? defaultLlm(); // created only after gate 1, so emergencies work without an API key
 
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
+  const turns: Turn[] = [
     {
       role: "user",
-      content: userTurn({
+      text: userTurn({
         province: province.code,
         provinceName: province.name,
         ageGroup: input.ageGroup,
@@ -108,38 +98,24 @@ export async function runAgent(input: AgentInput, injected?: MessagesClient): Pr
   let locationNeeded = false;
 
   for (let step = 0; step < MAX_STEPS; step++) {
-    const res = await client.create({
-      model: MODEL,
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "medium" },
-      system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-      tools: TOOLS,
-      tool_choice: { type: "auto" },
-      messages,
-    });
+    const res = await llm.complete({ system: SYSTEM_PROMPT, tools: TOOLS, turns });
 
-    if (res.stop_reason === "refusal") return { type: "error", message: "refusal" };
-    if (res.stop_reason === "max_tokens") return { type: "error", message: "max_tokens" };
-    messages.push({ role: "assistant", content: res.content });
+    if (res.stop === "refusal") return { type: "error", message: "refusal" };
+    if (res.stop === "max_tokens") return { type: "error", message: "max_tokens" };
+    turns.push({ role: "assistant", text: res.text, toolCalls: res.toolCalls, raw: res.raw });
 
-    const calls = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+    const calls = res.toolCalls;
     if (calls.length === 0) {
-      // The model answered in prose. Nudge once toward the required finishing tool.
-      messages.push({ role: "user", content: "Please finish by calling present_route (or ask_clarifying_question)." });
+      // The model answered in prose. Nudge toward the required finishing tool.
+      turns.push({ role: "user", text: "Please finish by calling present_route (or ask_clarifying_question)." });
       continue;
     }
 
-    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+    const results: { id: string; content: string; isError?: boolean }[] = [];
     for (const call of calls) {
-      const args = (call.input ?? {}) as Record<string, unknown>;
-      const ok = (content: unknown): Anthropic.Beta.BetaToolResultBlockParam => ({
-        type: "tool_result",
-        tool_use_id: call.id,
-        content: JSON.stringify(content),
-      });
-      const fail = (msg: string): Anthropic.Beta.BetaToolResultBlockParam => ({ ...ok({ error: msg }), is_error: true });
+      const args = call.input ?? {};
+      const ok = (content: unknown) => ({ id: call.id, content: JSON.stringify(content) });
+      const fail = (msg: string) => ({ ...ok({ error: msg }), isError: true });
 
       switch (call.name) {
         case "record_need": {
@@ -244,7 +220,7 @@ export async function runAgent(input: AgentInput, injected?: MessagesClient): Pr
           results.push(fail(`Unknown tool ${call.name}`));
       }
     }
-    messages.push({ role: "user", content: results });
+    turns.push({ role: "tool_results", results });
   }
   return { type: "error", message: "The assistant took too many steps." };
 }

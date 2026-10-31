@@ -179,7 +179,7 @@ export default function CareRouteApp() {
         setClarifyA("");
         setScreen("clarify");
       } else {
-        setError(data.message === "missing_api_key" ? t.errorKey : t.errorGeneric);
+        setError(data.message === "missing_api_key" || data.message === "invalid_api_key" ? t.errorKey : t.errorGeneric);
         setScreen("error");
       }
     } catch {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAgent, type AgentInput } from "@/lib/agent/runAgent";
+import { MissingApiKeyError } from "@/lib/llm";
 import { PROVINCES } from "@/lib/provinces";
 import type { RedFlagCategory } from "@/lib/safety/redFlags";
 
@@ -37,7 +38,8 @@ export async function POST(req: Request) {
     return NextResponse.json(await runAgent(input));
   } catch (e) {
     console.error("agent error", e instanceof Error ? e.message : e);
-    const noKey = !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN;
-    return NextResponse.json({ type: "error", message: noKey ? "missing_api_key" : "agent_failed" }, { status: 500 });
+    const status = (e as { status?: number }).status;
+    const message = e instanceof MissingApiKeyError ? "missing_api_key" : status === 401 ? "invalid_api_key" : status === 429 ? "rate_limited" : "agent_failed";
+    return NextResponse.json({ type: "error", message }, { status: 500 });
   }
 }

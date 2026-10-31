@@ -99,7 +99,7 @@ const en = {
   historyEmpty: "No saved searches yet.",
   attribution: "Data: Alberta Health Services, edwaittimes.ca, HealthLink BC (OGL-BC), © OpenStreetMap contributors (ODbL), Health Canada.",
   errorGeneric: "Something went wrong. If you need help now, call 8-1-1 or 9-1-1.",
-  errorKey: "The AI service is not set up (missing API key).",
+  errorKey: "The AI service is not set up (missing or invalid API key).",
   clarify: "One more question",
   answer: "Your answer",
   routeNames: {
@@ -208,7 +208,7 @@ const fr: typeof en = {
   historyEmpty: "Aucune recherche enregistrée.",
   attribution: "Données : Alberta Health Services, edwaittimes.ca, HealthLink BC (OGL-BC), © contributeurs OpenStreetMap (ODbL), Santé Canada.",
   errorGeneric: "Un problème est survenu. Si vous avez besoin d'aide, composez le 8-1-1 ou le 9-1-1.",
-  errorKey: "Le service d'IA n'est pas configuré (clé API manquante).",
+  errorKey: "Le service d'IA n'est pas configuré (clé API manquante ou invalide).",
   clarify: "Une autre question",
   answer: "Votre réponse",
   routeNames: {

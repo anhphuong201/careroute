@@ -1,25 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type Anthropic from "@anthropic-ai/sdk";
-import { runAgent, type AgentInput, type MessagesClient } from "./runAgent";
+import { runAgent, type AgentInput } from "./runAgent";
+import type { LlmClient, Turn } from "../llm/types";
 
 type Step = { name: string; input: Record<string, unknown> }[];
 
-/** Fake Claude: returns one scripted assistant turn per call and records requests. */
+/** Fake model: returns one scripted assistant turn per call and records each request's turns. */
 function fake(steps: Step[]) {
-  const requests: Anthropic.Beta.MessageCreateParamsNonStreaming[] = [];
+  const requests: { turns: Turn[]; tools: string[] }[] = [];
   let i = 0;
-  const client: MessagesClient = {
-    async create(p) {
-      requests.push(structuredClone(p));
+  const client: LlmClient = {
+    provider: "fake",
+    model: "fake",
+    async complete({ tools, turns }) {
+      requests.push({ turns: structuredClone(turns), tools: tools.map((t) => t.name) });
       const calls = steps[i++] ?? [];
-      return {
-        id: `msg_${i}`,
-        type: "message",
-        role: "assistant",
-        model: "fake",
-        stop_reason: calls.length ? "tool_use" : "end_turn",
-        content: calls.map((c, j) => ({ type: "tool_use", id: `tu_${i}_${j}`, name: c.name, input: c.input })),
-      } as unknown as Anthropic.Beta.BetaMessage;
+      return { text: "", stop: calls.length ? "tool_use" : "end", toolCalls: calls.map((c, j) => ({ id: `tu_${i}_${j}`, name: c.name, input: c.input })) };
     },
   };
   return { client, requests };
@@ -67,10 +62,10 @@ describe("runAgent – routing", () => {
     expect(r.rule.source_url).toMatch(/^https:\/\//);
     expect(r.registry?.rule_id).toBe("ab-registry");
     expect(r.language).toBe("ar");
-    // Province + location come from the server, and the system prompt is cached.
-    expect(JSON.stringify(requests[0].messages[0])).toContain("Alberta");
-    expect(requests[0].model).toBe("claude-opus-5-5");
-    expect(requests[0].tool_choice).toEqual({ type: "auto" });
+    // Province comes from the server; the model never gets booking/summary/red-flag tools.
+    expect(JSON.stringify(requests[0].turns[0])).toContain("Alberta");
+    expect(requests[0].tools).not.toContain("book_appointment");
+    expect(requests[0].tools).not.toContain("check_red_flags");
   });
 
   it("rejects a rule_id the model never retrieved, and accepts the corrected one", async () => {
@@ -82,8 +77,8 @@ describe("runAgent – routing", () => {
     ]);
     const r = await runAgent({ ...base, text: "can someone explain my blood test results" }, client);
     expect(r).toMatchObject({ type: "route", rule: { rule_id: "ab-virtual-care" } });
-    const toolResult = JSON.stringify(requests[2].messages.at(-1));
-    expect(toolResult).toContain("is_error");
+    const toolResult = JSON.stringify(requests[2].turns.at(-1));
+    expect(toolResult).toContain("isError");
   });
 
   it("asks for location when none was shared", async () => {
