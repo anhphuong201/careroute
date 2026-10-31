@@ -1,0 +1,4 @@
+id,name,type,address,city,lat,lng,phone,hours,accepts_walk_in,website,source_url
+ab-f-001,PLACEHOLDER Walk-in Clinic (Calgary),walk_in,TBD,Calgary,51.0447,-114.0719,,TBD,true,,
+ab-f-002,PLACEHOLDER Urgent Care Centre (Edmonton),urgent_care,TBD,Edmonton,53.5461,-113.4938,,TBD,true,,
+ab-f-003,PLACEHOLDER Hospital ED (Red Deer),emergency,TBD,Red Deer,52.2690,-113.8116,,24h,true,,

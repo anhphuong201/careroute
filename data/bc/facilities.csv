@@ -1,0 +1,4 @@
+id,name,type,address,city,lat,lng,phone,hours,accepts_walk_in,website,source_url
+bc-f-001,PLACEHOLDER Walk-in Clinic (Vancouver),walk_in,TBD,Vancouver,49.2827,-123.1207,,TBD,true,,
+bc-f-002,PLACEHOLDER Urgent & Primary Care Centre (Surrey),upcc,TBD,Surrey,49.1913,-122.8490,,TBD,true,,
+bc-f-003,PLACEHOLDER Hospital ED (Victoria),emergency,TBD,Victoria,48.4284,-123.3656,,24h,true,,

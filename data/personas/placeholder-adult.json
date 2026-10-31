@@ -1,0 +1,20 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "meta": { "tag": [{ "code": "PLACEHOLDER", "display": "Replace with Synthea output" }] },
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "persona-placeholder-adult",
+        "name": [{ "given": ["Sample"], "family": "Persona" }],
+        "gender": "unknown",
+        "birthDate": "1990-01-01",
+        "address": [{ "city": "Vancouver", "state": "BC", "country": "CA" }]
+      }
+    },
+    { "resource": { "resourceType": "AllergyIntolerance", "id": "a1", "code": { "text": "PLACEHOLDER allergy" }, "patient": { "reference": "Patient/persona-placeholder-adult" } } },
+    { "resource": { "resourceType": "MedicationStatement", "id": "m1", "medicationCodeableConcept": { "text": "PLACEHOLDER medication" }, "subject": { "reference": "Patient/persona-placeholder-adult" } } },
+    { "resource": { "resourceType": "Immunization", "id": "i1", "vaccineCode": { "text": "PLACEHOLDER vaccine" }, "patient": { "reference": "Patient/persona-placeholder-adult" } } }
+  ]
+}

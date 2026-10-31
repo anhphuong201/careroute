@@ -1,0 +1,10 @@
+{
+  "province": "AB",
+  "status": "PLACEHOLDER",
+  "source_url": "https://www.albertahealthservices.ca/waittimes/waittimes.aspx",
+  "refreshed_at": null,
+  "note": "Populated by `npm run refresh:er-waits`. Wait times are estimates from the official page; never shown when a red flag matched.",
+  "sites": [
+    { "facility_id": "ab-f-003", "name": "PLACEHOLDER Hospital ED (Red Deer)", "wait_minutes": null, "updated_at": null }
+  ]
+}

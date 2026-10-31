@@ -1,0 +1,10 @@
+{
+  "province": "BC",
+  "status": "PLACEHOLDER",
+  "source_url": "https://edwaittimes.ca/",
+  "refreshed_at": null,
+  "note": "Populated by `npm run refresh:er-waits`. Wait times are estimates from the official page; never shown when a red flag matched.",
+  "sites": [
+    { "facility_id": "bc-f-003", "name": "PLACEHOLDER Hospital ED (Victoria)", "wait_minutes": null, "updated_at": null }
+  ]
+}
