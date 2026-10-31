@@ -47,6 +47,16 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "lookup_medication",
+    description:
+      "Look up a medication in Health Canada's Drug Product Database to check whether it is prescription-only. Returns facts and a source link only; never advice about whether to take it.",
+    input_schema: {
+      type: "object",
+      properties: { query: { type: "string", description: "Brand name, ingredient, or DIN." } },
+      required: ["query"],
+    },
+  },
+  {
     name: "book_appointment",
     description: "SIMULATED booking. Only call after the user has explicitly approved a specific option.",
     input_schema: {
