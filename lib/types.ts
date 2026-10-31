@@ -10,7 +10,7 @@ export interface HouseholdMember {
   ageGroup: AgeGroup;
   /** Optional, used for the infant (<3 months) red-flag rule. */
   birthDate?: string;
-  hasFamilyDoctor: boolean | "hard_to_access";
+  hasFamilyDoctor: "yes" | "no" | "hard_to_access";
   /** Synthea persona id in /data/personas (prototype only). */
   personaId?: string;
 }
@@ -30,6 +30,9 @@ export interface SearchRecord {
   createdAt: string;
   province: ProvinceCode;
   route: CareRoute | "emergency";
+  routeTitle?: string;
+  language?: string;
+  bookingCode?: string;
   reason: string;
   sourceUrl: string;
 }

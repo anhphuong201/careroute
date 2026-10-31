@@ -1,0 +1,83 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      {
+        "code": "synthetic",
+        "display": "Synthea-format demo record – not a real person"
+      }
+    ]
+  },
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:jun-chen",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "jun-chen",
+        "meta": {
+          "tag": [
+            {
+              "system": "https://careroute.example/tags",
+              "code": "synthetic",
+              "display": "Young adult, no family doctor, minor new symptom"
+            }
+          ]
+        },
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Jun612"
+            ],
+            "family": "Chen930"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "2001-07-30",
+        "address": [
+          {
+            "city": "Vancouver",
+            "state": "BC",
+            "country": "CA"
+          }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [
+                {
+                  "system": "urn:ietf:bcp:47",
+                  "code": "zh",
+                  "display": "Chinese"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:jun-chen-imm-0",
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "jun-chen-imm-0",
+        "status": "completed",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/cvx",
+              "code": "140",
+              "display": "Influenza, seasonal, injectable, preservative free"
+            }
+          ],
+          "text": "Influenza, seasonal, injectable, preservative free"
+        },
+        "patient": {
+          "reference": "urn:uuid:jun-chen"
+        },
+        "occurrenceDateTime": "2025-11-02"
+      }
+    }
+  ]
+}

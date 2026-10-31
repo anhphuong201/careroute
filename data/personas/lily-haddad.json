@@ -1,0 +1,162 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      {
+        "code": "synthetic",
+        "display": "Synthea-format demo record – not a real person"
+      }
+    ]
+  },
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:lily-haddad",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "lily-haddad",
+        "meta": {
+          "tag": [
+            {
+              "system": "https://careroute.example/tags",
+              "code": "synthetic",
+              "display": "Child in Amira's household"
+            }
+          ]
+        },
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Lily58"
+            ],
+            "family": "Haddad103"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "2019-01-22",
+        "address": [
+          {
+            "city": "Calgary",
+            "state": "AB",
+            "country": "CA"
+          }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [
+                {
+                  "system": "urn:ietf:bcp:47",
+                  "code": "ar",
+                  "display": "Arabic"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:lily-haddad-cond-0",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "lily-haddad-cond-0",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "195967001",
+              "display": "Asthma"
+            }
+          ],
+          "text": "Asthma"
+        },
+        "subject": {
+          "reference": "urn:uuid:lily-haddad"
+        },
+        "onsetDateTime": "2023-03-01"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:lily-haddad-med-0",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "lily-haddad-med-0",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "745679",
+              "display": "Salbutamol (albuterol) 100 mcg/actuation inhaler"
+            }
+          ],
+          "text": "Salbutamol (albuterol) 100 mcg/actuation inhaler"
+        },
+        "subject": {
+          "reference": "urn:uuid:lily-haddad"
+        },
+        "authoredOn": "2026-02-01",
+        "dosageInstruction": [
+          {
+            "text": "2 puffs as needed for wheeze"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:lily-haddad-imm-0",
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "lily-haddad-imm-0",
+        "status": "completed",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/cvx",
+              "code": "94",
+              "display": "MMRV"
+            }
+          ],
+          "text": "MMRV"
+        },
+        "patient": {
+          "reference": "urn:uuid:lily-haddad"
+        },
+        "occurrenceDateTime": "2023-01-30"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:lily-haddad-imm-1",
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "lily-haddad-imm-1",
+        "status": "completed",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/cvx",
+              "code": "20",
+              "display": "DTaP"
+            }
+          ],
+          "text": "DTaP"
+        },
+        "patient": {
+          "reference": "urn:uuid:lily-haddad"
+        },
+        "occurrenceDateTime": "2023-01-30"
+      }
+    }
+  ]
+}

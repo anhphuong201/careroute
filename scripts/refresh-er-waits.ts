@@ -14,28 +14,8 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export interface ErWaitSite {
-  id: string;
-  name: string;
-  category: "emergency" | "urgent_care";
-  city: string;
-  address: string;
-  lat: number | null;
-  lng: number | null;
-  wait_minutes: number | null;
-  /** Who the site serves, as published (e.g. "17 and older"). */
-  audience: string | null;
-  note: string | null;
-  url: string | null;
-}
-
-export interface ErWaitsFile {
-  province: "AB" | "BC";
-  source_name: string;
-  source_url: string;
-  refreshed_at: string;
-  sites: ErWaitSite[];
-}
+import type { ErWaitSite, ErWaitsFile } from "../lib/data/erTypes";
+export type { ErWaitSite, ErWaitsFile };
 
 const AHS_PAGE = "https://www.albertahealthservices.ca/waittimes/waittimes.aspx";
 const AHS_API = "https://www.albertahealthservices.ca/Webapps/WaitTimes/api/waittimes/en";

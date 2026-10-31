@@ -1,0 +1,83 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      {
+        "code": "synthetic",
+        "display": "Synthea-format demo record – not a real person"
+      }
+    ]
+  },
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:noah-haddad",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "noah-haddad",
+        "meta": {
+          "tag": [
+            {
+              "system": "https://careroute.example/tags",
+              "code": "synthetic",
+              "display": "Infant (about 2 months) in Amira's household"
+            }
+          ]
+        },
+        "name": [
+          {
+            "use": "official",
+            "given": [
+              "Noah301"
+            ],
+            "family": "Haddad103"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "2026-08-25",
+        "address": [
+          {
+            "city": "Calgary",
+            "state": "AB",
+            "country": "CA"
+          }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [
+                {
+                  "system": "urn:ietf:bcp:47",
+                  "code": "ar",
+                  "display": "Arabic"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:noah-haddad-imm-0",
+      "resource": {
+        "resourceType": "Immunization",
+        "id": "noah-haddad-imm-0",
+        "status": "completed",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/cvx",
+              "code": "08",
+              "display": "Hep B, adolescent or pediatric"
+            }
+          ],
+          "text": "Hep B, adolescent or pediatric"
+        },
+        "patient": {
+          "reference": "urn:uuid:noah-haddad"
+        },
+        "occurrenceDateTime": "2026-08-26"
+      }
+    }
+  ]
+}
