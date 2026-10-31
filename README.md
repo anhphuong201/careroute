@@ -53,7 +53,7 @@ User ─► safety checklist (tap = emergency screen, no AI)
 |---|---|---|
 | `data/<prov>/er_waits.json` | AHS wait-time feed (AB), edwaittimes.ca (BC) | Real snapshot. Refresh: `npm run refresh:er-waits` |
 | `data/bc/facilities.csv` | HealthLink BC walk-in clinics (BC Data Catalogue) + ER/UPCC sites | Real |
-| `data/ab/facilities.csv` | AHS ER/urgent care sites + OpenStreetMap clinics | Real (OSM coverage varies) |
+| `data/ab/facilities.csv` | AHS ER/urgent care sites + OpenStreetMap general medical clinics (specialty clinics filtered out) | Real; walk-in status often unknown, so the app says "call first" |
 | `data/<prov>/pharmacies.csv` | OpenStreetMap | Real (OSM coverage varies) |
 | `rules/<prov>/*.md` | Official provincial pages (links in each file) | **Draft – needs team/mentor review** |
 | `data/personas/` | Synthea-format FHIR bundles (`scripts/make-personas.ts`) | 5 synthetic demo personas; swap in real Synthea output any time |

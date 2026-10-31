@@ -67,3 +67,15 @@ describe("shipped data files", () => {
     });
   }
 });
+
+describe("shipped facility data", () => {
+  it("has real pharmacies and clinics near Calgary and Vancouver", async () => {
+    const { findFacilities } = await import("../tools/facilities");
+    const yyc = findFacilities({ province: "AB", kind: "pharmacy", lat: 51.0447, lng: -114.0719, limit: 5 });
+    const yvr = findFacilities({ province: "BC", kind: "walk_in", lat: 49.2827, lng: -123.1207, limit: 5 });
+    expect(yyc.facilities).toHaveLength(5);
+    expect(yyc.facilities[4].distance_km).toBeLessThan(5);
+    expect(yvr.facilities[0].distance_km).toBeLessThan(5);
+    for (const f of [...yyc.facilities, ...yvr.facilities]) expect(f.source_url).toMatch(/^https?:\/\//);
+  });
+});

@@ -16,7 +16,7 @@
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv, toCsv } from "../lib/data/csv";
-import { inGeometry, type Geometry } from "../lib/data/geo";
+import { haversineKm, inGeometry, type Geometry } from "../lib/data/geo";
 import type { ErWaitsFile } from "./refresh-er-waits";
 
 const ROOT = process.cwd();
@@ -84,6 +84,20 @@ async function loadOsm(dir: string): Promise<OsmElement[]> {
     for (const e of json.elements as OsmElement[]) seen.set(`${e.type}/${e.id}`, e);
   }
   return [...seen.values()];
+}
+
+/**
+ * OSM "clinic"/"doctors" covers everything from dentists to laser hair removal.
+ * For the walk-in route keep only general medical clinics.
+ */
+const GENERAL_CLINIC = /medical|family|walk[\s-]?in|primary care|health cent(re|er)|physicians?|doctors?|\bmd\b|urgent care|after[\s-]?hours|polyclinic|community health/i;
+const SPECIALTY = /lasik|cataract|retina|ophthalm|public health|laser|eye|optom|optic|vision|dental|dentist|denture|orthodont|physio|chiro|massage|acupunct|naturopath|travel|passport|cosmetic|aesthetic|botox|skin|derma|vein|fertility|ivf|addiction|mental|psych|counsel|lab\b|labs\b|dynalife|imaging|x-ray|xray|ultrasound|mri|radiolog|hearing|audiolog|vet\b|veterinar|animal|pet\b|spa\b|sleep|cancer|dialysis|kidney|rehab|foot|podiat|orthot|weight|hair|tattoo|blood|plasma|vaccin|immuniz|abortion|sexual|sports|pain|wellness|ketamine|methadone|suboxone|surgery|surgical/i;
+export function isGeneralClinic(t: Record<string, string>): boolean {
+  const spec = (t["healthcare:speciality"] ?? "").toLowerCase();
+  const name = `${t.name ?? ""} ${t.description ?? ""}`;
+  if (spec && !/general|family|community/.test(spec)) return false;
+  if (SPECIALTY.test(name)) return false;
+  return /general|family|community/.test(spec) || GENERAL_CLINIC.test(name);
 }
 
 async function main() {
@@ -164,7 +178,11 @@ async function main() {
       const isPharmacy = t.amenity === "pharmacy" || t.healthcare === "pharmacy";
       if (isPharmacy) {
         pharmacies[prov].push({ id: `${prov.toLowerCase()}-ph-osm-${e.type[0]}${e.id}`, ...base });
-      } else if (prov === "AB" && (t.amenity === "clinic" || t.amenity === "doctors" || ["clinic", "doctor", "centre"].includes(t.healthcare ?? ""))) {
+      } else if (
+        prov === "AB" &&
+        (t.amenity === "clinic" || t.amenity === "doctors" || ["clinic", "doctor", "centre"].includes(t.healthcare ?? "")) &&
+        isGeneralClinic(t)
+      ) {
         const walkIn = /walk[\s-]?in/i.test(`${t.name} ${t.description ?? ""}`) ? "yes" : "unknown";
         facilities.AB.push({
           id: `ab-cl-osm-${e.type[0]}${e.id}`,
@@ -180,6 +198,22 @@ async function main() {
     console.warn("No OSM folder given – pharmacies.csv and AB clinics will not be rebuilt.");
   }
 
+  // OSM often has no addr:city. Borrow it from the nearest row that has one (≤ 15 km).
+  for (const prov of ["AB", "BC"] as Prov[]) {
+    const all = [...facilities[prov], ...pharmacies[prov]];
+    const named = all.filter((r) => r.city);
+    for (const r of all) {
+      if (r.city) continue;
+      let best: Row | null = null;
+      let bestKm = 15;
+      for (const n of named) {
+        const km = haversineKm(Number(r.lat), Number(r.lng), Number(n.lat), Number(n.lng));
+        if (km < bestKm) [best, bestKm] = [n, km];
+      }
+      if (best) r.city = best.city;
+    }
+  }
+
   for (const prov of ["AB", "BC"] as Prov[]) {
     const dir = path.join(ROOT, "data", prov.toLowerCase());
     const byName = (a: Row, b: Row) => String(a.name).localeCompare(String(b.name));
@@ -190,7 +224,9 @@ async function main() {
   console.log(`Attribution: ${OSM_SOURCE}`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (process.argv[1] && /build-facilities/.test(process.argv[1])) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
