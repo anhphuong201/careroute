@@ -9,11 +9,16 @@ sources:
     url: https://albertafindaprovider.ca/
   - title: "Navigate Care Alberta – Unattached Patient Playbook"
     url: https://navigatecareab.ca/guides/find-a-doctor
-last_reviewed: 2026-10-31
+  - title: "Navigating care options – Primary Care Alberta"
+    url: https://www.primarycarealberta.ca/page14142.aspx
+last_reviewed: 2026-11-01
 status: draft   # drafted from the official pages below; needs team/mentor review
 ---
 
 # AB – Find a family doctor (Alberta Find a Provider)
+
+## What Primary Care Alberta says
+- Having a family doctor offers ongoing personalized care, coordinated care and preventive medicine. Visit Alberta Find a Provider to find a doctor, nurse practitioner or clinic accepting new patients. Nurse practitioners can also assess, diagnose, treat, prescribe and give ongoing care.
 
 ## When this route fits
 - The person has no family doctor or nurse practitioner. Always offer this IN ADDITION to the route for today's need.

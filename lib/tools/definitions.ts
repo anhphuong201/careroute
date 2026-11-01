@@ -49,6 +49,12 @@ export const TOOLS: Tool[] = [
     parameters: obj({ query: { type: "string", description: "Brand name or 8-digit DIN." } }),
   },
   {
+    name: "symptom_guide",
+    description:
+      "Look up HealthLink BC's official symptom guide for a symptom the user described. Returns the guide's questions – the extra symptoms or situations that change what care is needed (e.g. 'Do you have a fever, chills or vomiting?') – and its URL. Use it to write the 'when' text for alternatives. Query with 1–3 plain health-guide words, e.g. 'constipation', 'sore throat', 'urinary problems', 'skin rash', 'cough', 'ear problems', 'headache', 'back pain', 'eye problems'.",
+    parameters: obj({ query: { type: "string" } }),
+  },
+  {
     name: "find_facilities",
     description:
       "Find options for the chosen route. pharmacy / walk_in / urgent_care are sorted by distance from the user's location (the server knows it); walk_in also returns urgent care centres and clinics whose walk-in status is unknown. kind=virtual returns the province's phone/video care services (official ones first).",
@@ -74,6 +80,17 @@ export const TOOLS: Tool[] = [
       facility_kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care", "virtual", "none"] },
       facility_ids: { type: "array", items: { type: "string" }, description: "Up to 5 ids from find_facilities, best first. Empty for 811, registry and family doctor routes." },
       registry_rule_id: { type: "string", description: "rule_id of the find-a-family-doctor rule when the person has no family doctor or it is hard to access, else an empty string." },
+      alternatives: {
+        type: "array",
+        description:
+          "1–3 other options, each with WHEN to choose it instead, in the user's language. Base 'when' on the rule text and on symptom_guide questions (e.g. 'If you also have belly pain, fever, blood in your stool, or it has not improved after a week of home care, see a doctor: virtual care or a walk-in clinic.'). Always include a safer step up (walk-in/urgent care or 811) when the main route is pharmacist.",
+        items: obj({
+          rule_id: { type: "string", description: "rule_id from search_care_rules." },
+          when: { type: "string", description: "One sentence starting with 'If …', in the user's language." },
+          facility_kind: { type: "string", enum: ["pharmacy", "walk_in", "urgent_care", "virtual", "none"] },
+        }),
+      },
+      guide_url: { type: "string", description: "URL returned by symptom_guide if you used it, else an empty string." },
     }),
   },
   {

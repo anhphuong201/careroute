@@ -2,7 +2,7 @@
   "province": "BC",
   "source_name": "edwaittimes.ca (VCH, PHC, FH, PHSA)",
   "source_url": "https://edwaittimes.ca/",
-  "refreshed_at": "2026-10-31T15:27:16.973Z",
+  "refreshed_at": "2026-11-01T00:37:43.660Z",
   "sites": [
     {
       "id": "bc-er-clp033k9o0000qo413bjy9a91",
@@ -12,10 +12,12 @@
       "address": "920 West 10th Ave, Vancouver, BC, V5Z 1M9",
       "lat": 49.262407,
       "lng": -123.124461,
-      "wait_minutes": 210,
+      "wait_minutes": 180,
       "audience": "17 and older",
       "note": "Adult hospital.",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-vancouver-general-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-vancouver-general-hospital",
+      "hours": "24/7",
+      "phone": "(604) 875-4111"
     },
     {
       "id": "bc-er-clp03447z0001qo41ttu19nbt",
@@ -28,7 +30,9 @@
       "wait_minutes": 180,
       "audience": "16 and under",
       "note": "Pediatric hospital.",
-      "url": "https://www.bcchildrens.ca/clinics-services/emergency-department"
+      "url": "https://www.bcchildrens.ca/clinics-services/emergency-department",
+      "hours": "24/7",
+      "phone": "(604) 875-2345"
     },
     {
       "id": "bc-er-clp1jhk0f0019qo40rmp9sryp",
@@ -38,10 +42,12 @@
       "address": "7000 Westminster Highway, Richmond, BC, V6X 1A2",
       "lat": 49.168873,
       "lng": -123.146325,
-      "wait_minutes": 240,
+      "wait_minutes": 135,
       "audience": "All ages",
       "note": "Full service hospital",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-richmond-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-richmond-hospital",
+      "hours": "24/7",
+      "phone": "(604) 278-9711"
     },
     {
       "id": "bc-er-clp1ji98i001aqo409dikn0s1",
@@ -51,10 +57,12 @@
       "address": "1081 Burrard St, Vancouver, BC, V6Z 1Y6",
       "lat": 49.280596,
       "lng": -123.129001,
-      "wait_minutes": 165,
+      "wait_minutes": 90,
       "audience": "All ages",
       "note": "Full service hospital.",
-      "url": "https://www.providencehealthcare.org/hospitals-residences/st-paul's-hospital"
+      "url": "https://www.providencehealthcare.org/hospitals-residences/st-paul's-hospital",
+      "hours": "24/7",
+      "phone": "(604) 682-2344"
     },
     {
       "id": "bc-er-clp1jjdg4001bqo40ae31g6ca",
@@ -64,10 +72,12 @@
       "address": "231 East 15th St, North Vancouver, BC, V7L 2L7",
       "lat": 49.321096,
       "lng": -123.067796,
-      "wait_minutes": 255,
+      "wait_minutes": 225,
       "audience": "All ages",
       "note": "Full service hospital",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-lions-gate-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-lions-gate-hospital",
+      "hours": "24/7",
+      "phone": "(604) 988-3131"
     },
     {
       "id": "bc-er-clp1jmnex001cqo40rdxc7zjg",
@@ -77,10 +87,12 @@
       "address": "3080 Prince Edward St, Vancouver, BC, V5T 3N4",
       "lat": 49.257914,
       "lng": -123.095204,
-      "wait_minutes": 75,
+      "wait_minutes": 120,
       "audience": "All ages",
       "note": "Full service hospital.\nHours: 8am to 8pm",
-      "url": "https://www.providencehealthcare.org/hospitals-residences/mount-saint-joseph-hospital"
+      "url": "https://www.providencehealthcare.org/hospitals-residences/mount-saint-joseph-hospital",
+      "hours": "Su 07:00-19:00; Mo 07:00-19:00; Tu 07:00-19:00; We 07:00-19:00; Th 07:00-19:00; Fr 07:00-19:00; Sa 07:00-19:00",
+      "phone": "(604) 874-1141"
     },
     {
       "id": "bc-er-clp1qhgyt0000n145eqo1j4v4",
@@ -93,7 +105,9 @@
       "wait_minutes": 75,
       "audience": "All ages",
       "note": "Hours: 8am to 8pm",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-ubc-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-ubc-hospital",
+      "hours": "Su 08:00-20:00; Mo 08:00-20:00; Tu 08:00-20:00; We 08:00-20:00; Th 08:00-20:00; Fr 08:00-20:00; Sa 08:00-20:00",
+      "phone": "(604) 822-7121"
     },
     {
       "id": "bc-er-clp1u92c5001rpa42n6eke8bx",
@@ -106,7 +120,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency. X-ray and lab services available off-site.\nHours: Mon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.reachcentre.bc.ca/upcc"
+      "url": "https://www.reachcentre.bc.ca/upcc",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 216-3138"
     },
     {
       "id": "bc-er-clp1ub99v0026pa42bm3ts3s0",
@@ -119,7 +135,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray and lab services available off-site.\nHours:\nMon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/northeast-urgent-and-primary-care-centre-upcc"
+      "url": "https://www.vch.ca/en/location/northeast-urgent-and-primary-care-centre-upcc",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 675-2599"
     },
     {
       "id": "bc-er-clp1udh1q002lpa423g8e05pv",
@@ -129,10 +147,12 @@
       "address": "38140 Behrner Drive, Squamish, BC, V8B 0J3",
       "lat": 49.698583,
       "lng": -123.140628,
-      "wait_minutes": 75,
+      "wait_minutes": 165,
       "audience": "All ages",
       "note": "Full service hospital.",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-squamish-general-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-squamish-general-hospital",
+      "hours": "24/7",
+      "phone": "(604) 892-5211"
     },
     {
       "id": "bc-er-clp1uf2tj002tpa42cmalvzzc",
@@ -142,10 +162,12 @@
       "address": "4380 Lorimer Road, Whistler, BC, V0N 18B",
       "lat": 50.11982,
       "lng": -122.955186,
-      "wait_minutes": null,
+      "wait_minutes": 15,
       "audience": "All ages",
       "note": "Emergency department\nHours: 8am to 10pm",
-      "url": "https://www.vch.ca/en/location/whistler-health-care-centre"
+      "url": "https://www.vch.ca/en/location/whistler-health-care-centre",
+      "hours": "Su 08:00-22:00; Mo 08:00-22:00; Tu 08:00-22:00; We 08:00-22:00; Th 08:00-22:00; Fr 08:00-22:00; Sa 08:00-22:00",
+      "phone": "(604) 932-4911"
     },
     {
       "id": "bc-er-clp1ug82t0031pa42pl91w1lx",
@@ -155,10 +177,12 @@
       "address": "1403 Portage Road, Pemberton, BC, V0N 2L0",
       "lat": 50.321081,
       "lng": -122.804414,
-      "wait_minutes": null,
+      "wait_minutes": 105,
       "audience": "All ages",
       "note": "Emergency department\nHours: 8:30am to 8:30pm",
-      "url": "https://www.vch.ca/en/location/pemberton-health-centre"
+      "url": "https://www.vch.ca/en/location/pemberton-health-centre",
+      "hours": "Su 08:30-20:30; Mo 08:30-20:30; Tu 08:30-20:30; We 08:30-20:30; Th 08:30-20:30; Fr 08:30-20:30; Sa 08:30-20:30",
+      "phone": "(604) 894-6939"
     },
     {
       "id": "bc-er-clp8weced0002p543tviehu5v",
@@ -171,7 +195,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray and lab services available off-site.\nHours: Mon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/southeast-urgent-and-primary-care-centre"
+      "url": "https://www.vch.ca/en/location/southeast-urgent-and-primary-care-centre",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 675-3210"
     },
     {
       "id": "bc-er-clp8wkcch000hp543wvdt87cr",
@@ -184,7 +210,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/8/emergency----burnaby-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/8/emergency----burnaby-hospital",
+      "hours": "24/7",
+      "phone": "(604) 434-4211"
     },
     {
       "id": "bc-er-clp8wpahy000ip5437yhg4jv3",
@@ -197,7 +225,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/2/4/emergency---eagle-ridge-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/2/4/emergency---eagle-ridge-hospital",
+      "hours": "24/7",
+      "phone": "(604) 461-2022"
     },
     {
       "id": "bc-er-clp8wu1f7000jp543uw4ii2tj",
@@ -210,7 +240,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/6/6/emergency---peace-arch-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/6/6/emergency---peace-arch-hospital",
+      "hours": "24/7",
+      "phone": "(604) 531-5512"
     },
     {
       "id": "bc-er-clp8wvsqq000kp5438qb8hs6k",
@@ -223,7 +255,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/7/emergency---ridge-meadows-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/7/emergency---ridge-meadows-hospital",
+      "hours": "24/7",
+      "phone": "(604) 463-4111"
     },
     {
       "id": "bc-er-clp8wyd27000lp543w3jczxmw",
@@ -236,7 +270,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/E/emergency---royal-columbian-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/E/emergency---royal-columbian-hospital",
+      "hours": "24/7",
+      "phone": "(604) 520-4253 "
     },
     {
       "id": "bc-er-clp8xavwr000np543qere28rd",
@@ -249,7 +285,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours:\nMon-Fri: 5pm to 9pm\nSat: 2pm to 8pm\nSun: 12pm to 6pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/9/D/urgent-primary-care-centre---edmonds"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/9/D/urgent-primary-care-centre---edmonds",
+      "hours": "Su 12:00-18:00; Mo 17:00-21:00; Tu 17:00-21:00; We 17:00-21:00; Th 17:00-21:00; Fr 17:00-21:00; Sa 14:00-20:00",
+      "phone": "(604) 519-3787"
     },
     {
       "id": "bc-er-clp8xdt66000op543a5c8j4i0",
@@ -262,7 +300,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: 9am to 8pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/7/metrotown-urgent-and-primary-care-centre"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/7/metrotown-urgent-and-primary-care-centre",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 451-4888"
     },
     {
       "id": "bc-er-clp8xhmqg000pp543gdin4eiy",
@@ -275,7 +315,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: 9am to 8pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/9/urgent-and-primary-care-centre---port-moody"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/9/urgent-and-primary-care-centre---port-moody",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 469-3123"
     },
     {
       "id": "bc-er-clp8xlc3o000qp5437vsrvf0v",
@@ -288,7 +330,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: Mon-Fri: 2pm to 9pm\nSat-Sun: 9am to 9pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/0/1/urgent-and-primary-care-centre---surrey-newton"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/0/1/urgent-and-primary-care-centre---surrey-newton",
+      "hours": "Su 09:00-21:00; Mo 14:00-21:00; Tu 14:00-21:00; We 14:00-21:00; Th 14:00-21:00; Fr 14:00-21:00; Sa 09:00-21:00",
+      "phone": "(604) 572-2625"
     },
     {
       "id": "bc-er-clp8xpsx6000rp543j0dhevvj",
@@ -301,7 +345,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: 9am to 9pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/3/urgent-primary-care-centre---surrey"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/3/urgent-primary-care-centre---surrey",
+      "hours": "Su 09:00-21:00; Mo 09:00-21:00; Tu 09:00-21:00; We 09:00-21:00; Th 09:00-21:00; Fr 09:00-21:00; Sa 09:00-21:00",
+      "phone": "(604) 572-2610"
     },
     {
       "id": "bc-er-clp8xuydi000sp54370z8b274",
@@ -311,10 +357,12 @@
       "address": "5544 Sunshine Coast Highway, Sechelt, BC V0N 3A0",
       "lat": 49.47538,
       "lng": -123.749473,
-      "wait_minutes": 165,
+      "wait_minutes": 330,
       "audience": "All ages",
       "note": "Full service hospital",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-sechelt-shishalh-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-sechelt-shishalh-hospital",
+      "hours": "24/7",
+      "phone": "(604) 885-2224"
     },
     {
       "id": "bc-er-clp8xzmxm000tp5434t92c0r5",
@@ -324,10 +372,12 @@
       "address": "5000 Joyce Avenue, Powell River, BC V8A 5R3",
       "lat": 49.850835,
       "lng": -124.518373,
-      "wait_minutes": 135,
+      "wait_minutes": 90,
       "audience": "All ages",
       "note": "Full service hospital",
-      "url": "https://www.vch.ca/en/location-service/emergency-department-qathet-general-hospital"
+      "url": "https://www.vch.ca/en/location-service/emergency-department-qathet-general-hospital",
+      "hours": "24/7",
+      "phone": "(604) 485-3211"
     },
     {
       "id": "bc-er-clp8y4dz0000up543mwjn2cyc",
@@ -340,7 +390,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray services available on-site. Lab services available off-site.\nHours:\nMon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/north-vancouver-urgent-and-primary-care-centre"
+      "url": "https://www.vch.ca/en/location/north-vancouver-urgent-and-primary-care-centre",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 973-1600"
     },
     {
       "id": "bc-er-clp8y92nn000vp543pelqkbgw",
@@ -353,7 +405,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/8/7/emergency---delta-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/8/7/emergency---delta-hospital",
+      "hours": "24/7",
+      "phone": "(604) 946-1121"
     },
     {
       "id": "bc-er-clp8yb75j000wp5437cdmn5pr",
@@ -366,7 +420,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/2/emergency---abbotsford-regional-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/2/emergency---abbotsford-regional-hospital",
+      "hours": "24/7",
+      "phone": "(604) 851-4700"
     },
     {
       "id": "bc-er-clp8ych5p000xp543839122fj",
@@ -379,7 +435,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/3/emergency---chilliwack-general-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/3/emergency---chilliwack-general-hospital",
+      "hours": "24/7",
+      "phone": "(604) 795-4141"
     },
     {
       "id": "bc-er-clp8yds7a000yp543g2gsgbix",
@@ -392,7 +450,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/5/emergency---langley-memorial-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/D/5/emergency---langley-memorial-hospital",
+      "hours": "24/7",
+      "phone": "(604) 514-6000"
     },
     {
       "id": "bc-er-clp8yge40000zp543gdj9z2zk",
@@ -405,7 +465,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: \nMon - Sun: 9am to 8pm. \nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/7/urgent-and-primary-care-centre---abbotsford"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/E/7/urgent-and-primary-care-centre---abbotsford",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 870-3325"
     },
     {
       "id": "bc-er-clp8yjbql0010p543h8pa02z3",
@@ -418,7 +480,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: 9am to 8pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/C/urgent-primary-care-centre---ridge-meadows"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/C/urgent-primary-care-centre---ridge-meadows",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 476-4650"
     },
     {
       "id": "bc-er-clpkg5qm40000pq41pihmlb48",
@@ -431,7 +495,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray services available on-site. Lab services available off-site.\nHours: Mon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/richmond-city-centre-urgent-and-primary-care-centre"
+      "url": "https://www.vch.ca/en/location/richmond-city-centre-urgent-and-primary-care-centre",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 675-2768"
     },
     {
       "id": "bc-er-cls0uvadt9asfmo47yvw8sqvf",
@@ -444,7 +510,9 @@
       "wait_minutes": null,
       "audience": "17 and older",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/9/emergency---surrey-memorial-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/9/emergency---surrey-memorial-hospital",
+      "hours": "24/7",
+      "phone": "(604) 581-2211"
     },
     {
       "id": "bc-er-cls0uxgp69asgmo479vh3p9kf",
@@ -457,7 +525,9 @@
       "wait_minutes": null,
       "audience": "16 and under",
       "note": null,
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/9/emergency---surrey-memorial-hospital"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/5/9/emergency---surrey-memorial-hospital",
+      "hours": "24/7",
+      "phone": "(604) 581-2211"
     },
     {
       "id": "bc-er-clubmk6pw417ut64umefmtq5o",
@@ -470,7 +540,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray services available on-site. Lab services available off-site.\nHours: Mon - Sat: 8am – 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/richmond-east-urgent-and-primary-care-centre-upcc"
+      "url": "https://www.vch.ca/en/location/richmond-east-urgent-and-primary-care-centre-upcc",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 244-5560"
     },
     {
       "id": "bc-er-clwzle062002a6niqpawb81di",
@@ -483,7 +555,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: \nMon-Fri: 12 noon pm to 8pm\nSat-Sun & Stat Holidays: 9am to 8pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/8/3/Urgent-and-Primary-Care-Centre---Chilliwack"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/8/3/Urgent-and-Primary-Care-Centre---Chilliwack",
+      "hours": "Su 09:00-20:00; Mo 12:00-20:00; Tu 12:00-20:00; We 12:00-20:00; Th 12:00-20:00; Fr 12:00-20:00; Sa 09:00-20:00",
+      "phone": "(778) 704-6006"
     },
     {
       "id": "bc-er-clwzli44z003g6niqeamxklp5",
@@ -496,7 +570,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours:  9am to 8pm daily\n\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/4/urgent-and-primary-care-centre-langley"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/F/4/urgent-and-primary-care-centre-langley",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 514-7477"
     },
     {
       "id": "bc-er-clwzljuh2003h6niq6zx8vujr",
@@ -509,7 +585,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "Patients will be seen according to urgency.\nHours: 9am to 8pm\nTo speak with a Fraser Health Virtual Care clinician now: 1-800-314-0999 10am to 10pm, seven days a week.",
-      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/3/D/Urgent-and-Primary-Care-Centre---Mission"
+      "url": "https://www.fraserhealth.ca/Service-Directory/Service-At-Location/3/D/Urgent-and-Primary-Care-Centre---Mission",
+      "hours": "Su 09:00-20:00; Mo 09:00-20:00; Tu 09:00-20:00; We 09:00-20:00; Th 09:00-20:00; Fr 09:00-20:00; Sa 09:00-20:00",
+      "phone": "(604) 814-5648"
     },
     {
       "id": "bc-er-cm41nasze2389zotbsny3bzk6",
@@ -522,7 +600,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "X-ray services available on-site. Lab services available off-site.\nHours:\nMon-Sat: 8am to 10pm\nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/en/location/vancouver-city-centre-urgent-primary-care-centre"
+      "url": "https://www.vch.ca/en/location/vancouver-city-centre-urgent-primary-care-centre",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "(604) 416-1811"
     },
     {
       "id": "bc-er-cmndrvl7425a48bf5cjc3mtwm",
@@ -535,7 +615,9 @@
       "wait_minutes": null,
       "audience": "All ages",
       "note": "UBC UPCC has X-ray services available on-site. \nLab services available off-site. \nHours: \nMon - Sat: 8am – 10pm \nSun: 9am to 5pm",
-      "url": "https://www.vch.ca/UBC-UPCC"
+      "url": "https://www.vch.ca/UBC-UPCC",
+      "hours": "Su 08:00-16:00; Mo 07:00-21:00; Tu 07:00-21:00; We 07:00-21:00; Th 07:00-21:00; Fr 07:00-21:00; Sa 07:00-21:00",
+      "phone": "236-466-6196"
     }
   ]
 }

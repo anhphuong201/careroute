@@ -102,4 +102,26 @@ describe("runAgent – routing", () => {
     expect(r).toMatchObject({ type: "route", rule: { route: "family_doctor" } });
     if (r.type === "route") expect(r.registry).toBeUndefined();
   });
+
+  it("keeps only alternatives whose rules were retrieved, and drops an unverified guide link", async () => {
+    const { client } = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Constipation for two weeks.", need_type: "minor_symptom", medication_mentioned: "" } }],
+      [{ name: "search_care_rules", input: { need_type: "minor_symptom", need_summary_en: "constipation" } }],
+      [{ name: "present_route", input: {
+        rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "",
+        alternatives: [
+          { rule_id: "ab-walk-in", when: "If you also have belly pain or blood in your stool, see a doctor today.", facility_kind: "walk_in" },
+          { rule_id: "made-up", when: "If anything", facility_kind: "none" },
+          { rule_id: "ab-811", when: "", facility_kind: "none" },
+        ],
+        guide_url: "https://evil.example/page",
+      } }],
+    ]);
+    const r = await runAgent({ ...base, text: "constipated for 2 weeks" }, client);
+    expect(r.type).toBe("route");
+    if (r.type !== "route") return;
+    expect(r.alternatives.map((a) => a.rule.rule_id)).toEqual(["ab-walk-in"]);
+    expect(r.alternatives[0].rule.source_url).toMatch(/^https:\/\//);
+    expect(r.guide).toBeUndefined();
+  });
 });

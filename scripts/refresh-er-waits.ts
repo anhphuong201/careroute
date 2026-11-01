@@ -72,6 +72,8 @@ export function mapAhs(json: Record<string, Record<string, AhsSite[]>>): ErWaitS
           audience: null,
           note: stripHtml(s.Note),
           url: s.URL,
+          hours: stripHtml(s.Note),
+          phone: null,
         });
       }
     }
@@ -92,6 +94,26 @@ interface BcSite {
   description: string;
   showWaitTimes: boolean;
   waitTime?: { waitTimeMinutes?: number | null } | null;
+  phone?: string;
+  open247?: boolean;
+  operatingHours?: { days?: { open: string | null; close: string | null }[] } | null;
+}
+
+/**
+ * edwaittimes.ca stores times as 1970-01-01 GMT instants; they are Pacific Standard Time
+ * (UTC-8) wall-clock times. days[0] is Sunday.
+ */
+export function bcHours(s: Pick<BcSite, "open247" | "operatingHours">): string | null {
+  if (s.open247) return "24/7";
+  const days = s.operatingHours?.days;
+  if (!days?.length) return null;
+  const OSM = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const hm = (iso: string) => {
+    const d = new Date(new Date(iso).getTime() - 8 * 3600 * 1000);
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  };
+  const rules = days.map((d, i) => (d.open && d.close ? `${OSM[i]} ${hm(d.open)}-${hm(d.close)}` : `${OSM[i]} off`));
+  return rules.join("; ");
 }
 
 const BC_AUDIENCE: Record<string, string> = {
@@ -115,6 +137,8 @@ export function mapBc(json: BcSite[]): ErWaitSite[] {
       audience: BC_AUDIENCE[s.audience] ?? s.audience ?? null,
       note: s.description || null,
       url: s.website || null,
+      hours: bcHours(s),
+      phone: s.phone || null,
     }));
 }
 

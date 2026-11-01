@@ -9,6 +9,7 @@ import type { AgeGroup, Household, HouseholdMember, SearchRecord } from "@/lib/t
 import type { AgentResult } from "@/lib/agent/runAgent";
 import type { RedFlagAction, RedFlagCategory } from "@/lib/safety/redFlags";
 import type { Booking } from "@/lib/tools/booking";
+import { fmtMinute, fmtWeekday, openStatus, parseHours, weekLines } from "@/lib/data/hours";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -21,6 +22,15 @@ type Persona = { id: string; name: string; note: string; birthDate: string; prov
 
 const fullAddress = (f: { address: string; city: string }) =>
   f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address || f.city;
+
+/** Add or remove a phrase from the free-text need ("Sore throat. A few days."). */
+function toggleItem(text: string, item: string): string {
+  const parts = text.split(/\.\s*/).map((p) => p.trim()).filter(Boolean);
+  const i = parts.findIndex((p) => p.toLowerCase() === item.toLowerCase());
+  if (i >= 0) parts.splice(i, 1);
+  else parts.push(item);
+  return parts.length ? parts.join(". ") + "." : "";
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const initial = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
@@ -37,6 +47,8 @@ function ageMonths(m: HouseholdMember): number | undefined {
   // Unknown birth date: treat a baby as the youngest age, so the infant-fever safety rule still applies.
   return m.ageGroup === "infant" ? 0 : undefined;
 }
+
+const TZ: Record<ProvinceCode, string> = { AB: "America/Edmonton", BC: "America/Vancouver" };
 
 const KIND_ICON: Record<string, string> = { pharmacy: "💊", walk_in: "🏥", urgent_care: "🚑", emergency: "🏨", clinic: "🩺", virtual: "📹" };
 const ROUTE_ICON: Record<string, string> = { pharmacist: "💊", virtual_care: "📹", walk_in: "🏥", call_811: "📞", registry: "👩‍⚕️", family_doctor: "🩺" };
@@ -129,10 +141,10 @@ export default function CareRouteApp() {
 
   const members = household.members;
   const member: HouseholdMember = members.find((m) => m.id === memberId) ?? guest;
-  const greeting = (() => {
-    const h = new Date().getHours();
-    return h < 12 ? t.goodMorning : h < 18 ? t.goodAfternoon : t.goodEvening;
-  })();
+  // Set after mount: the page is pre-rendered, so the server's clock must not decide the greeting.
+  const [hour, setHour] = useState<number | null>(null);
+  useEffect(() => setHour(new Date().getHours()), []);
+  const greeting = hour === null ? t.hello : hour < 12 ? t.goodMorning : hour < 18 ? t.goodAfternoon : t.goodEvening;
 
   function saveHousehold(h: Household) {
     setHousehold(h);
@@ -353,6 +365,15 @@ export default function CareRouteApp() {
                 ))}
               </div>
 
+              <SectionHead title={t.commonSymptoms} />
+              <div className="chips">
+                {t.symptoms.slice(0, 8).map((sym) => (
+                  <button key={sym} className="chip" onClick={() => startSearch(sym)}>
+                    {sym}
+                  </button>
+                ))}
+              </div>
+
               <SectionHead title={t.whoNeedsCare} action={t.myHousehold} onAction={() => setScreen("household")} />
               <div className="people">
                 <PersonChip label={t.me} sub={t[guest.ageGroup]} on={memberId === null} onClick={() => setMemberId(null)} />
@@ -436,12 +457,29 @@ export default function CareRouteApp() {
                 {t.needHelp}
               </label>
               <textarea id="need" rows={5} value={text} placeholder={t.needPlaceholder} onChange={(e) => setText(e.target.value)} />
+              <p className="label">{t.commonSymptoms}</p>
+              <p className="help small">{t.tapToAdd}</p>
               <div className="chips">
-                {[t.exRenewal, t.exLab, t.exMinor].map((ex) => (
-                  <button key={ex} className="chip" onClick={() => setText(ex)}>
-                    {ex}
-                  </button>
-                ))}
+                {[...t.symptoms, t.exRenewal, t.exLab].map((ex) => {
+                  const on = text.toLowerCase().includes(ex.toLowerCase());
+                  return (
+                    <button key={ex} className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => setText(toggleItem(text, ex))}>
+                      {on ? "✓ " : ""}
+                      {ex}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="label">{t.howLong}</p>
+              <div className="chips">
+                {t.durations.map((d) => {
+                  const on = text.toLowerCase().includes(d.toLowerCase());
+                  return (
+                    <button key={d} className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => setText(toggleItem(text, d))}>
+                      {d}
+                    </button>
+                  );
+                })}
               </div>
               <SectionHead title={t.location} />
               <button className={`btn btn-soft ${locStatus === "on" ? "is-on" : ""}`} onClick={askLocation} aria-pressed={locStatus === "on"}>
@@ -489,6 +527,8 @@ export default function CareRouteApp() {
             <Result
               t={t}
               loc={loc}
+              province={province}
+              location={location}
               result={result}
               onChoose={(o) => {
                 setChosen(o);
@@ -920,8 +960,17 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
   );
 }
 
-function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose: (o: Option) => void; onNeedLocation: () => void }) {
-  const { t, result: r } = props;
+function Result(props: {
+  t: Strings;
+  loc: string;
+  province: ProvinceCode;
+  location: { lat: number; lng: number } | null;
+  result: RouteResult;
+  onChoose: (o: Option) => void;
+  onNeedLocation: () => void;
+}) {
+  const { t, loc, result: r, province } = props;
+  const tz = TZ[province];
   const rtl = ["ar", "fa", "ur", "he"].includes(r.language.slice(0, 2));
   const action = useMemo(() => routeAction(r, t), [r, t]);
 
@@ -945,6 +994,11 @@ function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose:
         <a className="route-source" href={r.rule.source_url} target="_blank" rel="noreferrer">
           {t.source}: {r.rule.sources[0]?.title ?? r.rule.title} ↗
         </a>
+        {r.guide && (
+          <a className="route-source" href={r.guide.url} target="_blank" rel="noreferrer">
+            {t.symptomGuide}: HealthLink BC – {r.guide.title} ↗
+          </a>
+        )}
         {action}
       </div>
 
@@ -962,6 +1016,17 @@ function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose:
         </a>
       )}
 
+      {r.alternatives.length > 0 && (
+        <>
+          <SectionHead title={t.otherOptions} />
+          <ul className="list">
+            {r.alternatives.map((a) => (
+              <Alternative key={a.rule.rule_id} t={t} loc={loc} tz={tz} province={province} location={props.location} alt={a} rtl={rtl} lang={r.language} onChoose={props.onChoose} />
+            ))}
+          </ul>
+        </>
+      )}
+
       {r.facility_kind && (
         <>
           <SectionHead title={r.facility_kind === "virtual" ? t.catVirtual : t.options} />
@@ -975,7 +1040,7 @@ function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose:
           )}
           <ul className="list">
             {r.facilities.map((f) => (
-              <OptionCard key={f.id} t={t} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} />
+              <OptionCard key={f.id} t={t} loc={loc} tz={tz} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} />
             ))}
           </ul>
         </>
@@ -984,7 +1049,115 @@ function Result(props: { t: Strings; loc: string; result: RouteResult; onChoose:
   );
 }
 
-function OptionCard({ t, f, waitsSource, onChoose }: { t: Strings; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void }) {
+function Alternative(props: {
+  t: Strings;
+  loc: string;
+  tz: string;
+  province: ProvinceCode;
+  location: { lat: number; lng: number } | null;
+  alt: RouteResult["alternatives"][number];
+  rtl: boolean;
+  lang: string;
+  onChoose: (o: Option) => void;
+}) {
+  const { t, alt } = props;
+  const [places, setPlaces] = useState<{ facilities: Option[]; er_waits_source?: RouteResult["er_waits_source"]; location_needed: boolean } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle() {
+    if (open) return setOpen(false);
+    setOpen(true);
+    if (places || !alt.facility_kind) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/facilities", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ province: props.province, kind: alt.facility_kind, location: props.location }),
+      });
+      setPlaces(await res.json());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="card alt">
+      <div className="option-head">
+        <span className="tile" aria-hidden>
+          {ROUTE_ICON[alt.rule.route] ?? "➜"}
+        </span>
+        <span className="option-title">
+          <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
+          <span className="block alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
+            {alt.when}
+          </span>
+        </span>
+      </div>
+      <div className="option-actions">
+        {alt.rule.route === "call_811" ? (
+          <a className="btn-outline" href="tel:811">
+            📞 {t.call811}
+          </a>
+        ) : alt.facility_kind ? (
+          <button className="btn-outline" onClick={toggle} aria-expanded={open}>
+            {busy ? "…" : open ? t.hidePlaces : t.showPlaces}
+          </button>
+        ) : (
+          <a className="btn-outline" href={alt.rule.source_url} target="_blank" rel="noreferrer">
+            {t.website} ↗
+          </a>
+        )}
+      </div>
+      <a className="link-small" href={alt.rule.source_url} target="_blank" rel="noreferrer">
+        {t.source}: {alt.rule.sources[0]?.title ?? alt.rule.title} ↗
+      </a>
+      {open && places && (
+        <ul className="list nested">
+          {places.location_needed && <p className="small muted">{t.shareLocationForOptions}</p>}
+          {places.facilities.map((f) => (
+            <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places.er_waits_source} onChoose={() => props.onChoose(f)} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function OpenBadge({ t, loc, tz, hours }: { t: Strings; loc: string; tz: string; hours: string }) {
+  const parsed = useMemo(() => parseHours(hours), [hours]);
+  const st = openStatus(parsed, tz);
+  const lines = weekLines(parsed.week, loc, t.closed);
+  let badge: React.ReactNode;
+  if (st.kind === "always") badge = <span className="open-badge is-open">● {t.open24}</span>;
+  else if (st.kind === "open") badge = <span className="open-badge is-open">● {t.openNow} · {t.closesAt} {fmtMinute(st.closesAt, loc)}</span>;
+  else if (st.kind === "closed")
+    badge = (
+      <span className="open-badge is-closed">
+        ● {t.closedNow} · {t.opensAt} {st.opensToday ? "" : `${fmtWeekday(st.opensDay, loc)} `}
+        {fmtMinute(st.opensAt, loc)}
+      </span>
+    );
+  else badge = <span className="open-badge is-unknown">{t.hoursUnknown}</span>;
+  return (
+    <div className="hours">
+      {badge}
+      {!parsed.always && lines.length > 0 && (
+        <details>
+          <summary>{t.weekHours}</summary>
+          <ul className="week">
+            {lines.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc: string; tz: string; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void }) {
   const virtual = f.kind === "virtual";
   return (
     <li className="card option">
@@ -1037,7 +1210,20 @@ function OptionCard({ t, f, waitsSource, onChoose }: { t: Strings; f: Option; wa
               </span>
             </div>
           )}
-          {f.hours && <p className="muted small">🕒 {f.hours.slice(0, 120)}</p>}
+          <OpenBadge t={t} loc={loc} tz={tz} hours={f.hours} />
+          {f.phone ? (
+            <p className="phone">
+              📞{" "}
+              <a href={`tel:${f.phone.replace(/[^\d+]/g, "")}`}>{f.phone}</a>
+            </p>
+          ) : (
+            <p className="small muted">
+              📞 {t.phoneNotListed} ·{" "}
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${f.name} ${f.address} ${f.city}`)}`} target="_blank" rel="noreferrer">
+                {t.findPhone} ↗
+              </a>
+            </p>
+          )}
           {f.languages && <p className="muted small">🗣 {f.languages}</p>}
           {f.accepts_walk_in === "unknown" && <p className="small warn">{t.walkInUnknown}</p>}
         </>

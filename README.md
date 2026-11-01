@@ -27,8 +27,8 @@ User ─► safety checklist (tap = emergency screen, no AI)
           1. checkRedFlags(raw text, checklist, age)        rules, not AI ── match → 911 / 988 / 811 screen
           2. AI → record_need (English restatement)
              checkRedFlags(English restatement)             rules again ─── match → emergency screen
-          3. AI → search_care_rules → find_facilities → check_er_waits / lookup_medication
-          4. AI → present_route  → server checks rule_id was really retrieved,
+          3. AI → search_care_rules → symptom_guide (HealthLink BC) → find_facilities → check_er_waits / lookup_medication
+          4. AI → present_route  → main route + 1–3 "If …" alternatives; server checks every rule_id was really retrieved,
                                        attaches the rule's official source link + facility records
      ─► user taps "Choose" → approval dialog → /api/book (mock, labelled SIMULATED)
      ─► /api/summary → one-page PDF (FHIR IPS layout) from /data/personas
@@ -57,7 +57,7 @@ User ─► safety checklist (tap = emergency screen, no AI)
 | `data/bc/facilities.csv` | HealthLink BC walk-in clinics (BC Data Catalogue) + ER/UPCC sites | Real |
 | `data/ab/facilities.csv` | AHS ER/urgent care sites + OpenStreetMap general medical clinics (specialty clinics filtered out) | Real; walk-in status often unknown, so the app says "call first" |
 | `data/<prov>/pharmacies.csv` | OpenStreetMap | Real (OSM coverage varies) |
-| `rules/<prov>/*.md` | Official provincial pages (links in each file) | **Draft – needs team/mentor review** |
+| `rules/<prov>/*.md` | Primary Care Alberta "Navigating care options", HealthLink BC, Navigate Care Alberta pharmacist list, BC minor-ailments checklist (links in each file) | **Draft – needs team/mentor review** |
 | `data/personas/` | Synthea-format FHIR bundles (`scripts/make-personas.ts`) | 5 synthetic demo personas; swap in real Synthea output any time |
 
 Rebuild facilities: `npm run fetch:osm && npm run build:facilities -- .osm-cache`

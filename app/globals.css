@@ -245,3 +245,19 @@ textarea, input, select { width: 100%; font: inherit; font-size: 1.05rem; paddin
 .spinner { width: 56px; height: 56px; margin: 0 auto 1rem; border: 6px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } * { scroll-behavior: auto !important; } }
+
+/* ── hours, phone, alternatives ── */
+.hours { margin: 0.5rem 0 0.2rem; }
+.open-badge { display: inline-block; font-weight: 700; font-size: 0.9rem; border-radius: 999px; padding: 0.15rem 0.7rem; }
+.open-badge.is-open { color: var(--ok); background: var(--ok-soft); }
+.open-badge.is-closed { color: var(--danger); background: var(--danger-soft); }
+.open-badge.is-unknown { color: var(--warn); background: var(--surface-2); font-weight: 600; }
+.hours details { margin-top: 0.3rem; font-size: 0.9rem; }
+.hours summary { cursor: pointer; color: var(--primary); font-weight: 600; min-height: 32px; }
+.week { list-style: none; padding: 0.3rem 0 0; margin: 0; color: var(--muted); white-space: pre; }
+.phone { font-weight: 700; font-size: 1.05rem; margin: 0.3rem 0; }
+.phone a { text-decoration: none; }
+.alt-when { margin-top: 0.2rem; font-size: 0.95rem; }
+.nested { margin-top: 0.6rem; }
+.nested .card { box-shadow: none; background: var(--surface-2); }
+.chip.on { background: var(--primary-soft); border-color: var(--primary); font-weight: 700; }

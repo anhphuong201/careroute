@@ -3,17 +3,25 @@ id: ab-walk-in
 province: AB
 route: walk_in
 needs: [minor_symptom, lab_followup, prescription_renewal]
-source_url: https://albertafindaprovider.ca/
+source_url: https://www.primarycarealberta.ca/page14142.aspx
 sources:
+  - title: "Navigating care options – Primary Care Alberta"
+    url: https://www.primarycarealberta.ca/page14142.aspx
   - title: "Alberta Find a Provider – walk-in clinics"
     url: https://albertafindaprovider.ca/
   - title: "Emergency and urgent care wait times – Alberta Health Services"
     url: https://www.albertahealthservices.ca/waittimes/waittimes.aspx
-last_reviewed: 2026-10-31
+last_reviewed: 2026-11-01
 status: draft   # drafted from the official pages below; needs team/mentor review
 ---
 
 # AB – Walk-in clinic or urgent care centre
+
+## What Primary Care Alberta says
+- **Walk-in clinics** offer a range of medical services and you don't need an appointment. They handle non-life-threatening illnesses and injuries that need prompt attention but don't need the emergency department. Use the Find a Clinic search tool to find a clinic with walk-in service.
+- **Urgent care centres** give extended-hour access for unexpected but non-life-threatening concerns that need same-day or evening treatment. Common conditions treated: broken bones, sprains, cuts, asthma, dehydration, pain, infections. Patients are seen by how urgent their condition is, not first-come first-served. They have on-site lab and x-ray. If you're unsure whether to go to urgent care, call Health Link 811.
+- **Ambulatory care centres** (La Crete, Piyami Health Centre in Picture Butte, Sylvan Lake) treat urgent but non-life-threatening problems that need immediate attention.
+- For serious and life-threatening concerns always go to the nearest emergency department or call 9-1-1.
 
 ## When this route fits
 - Walk-in clinic: non-emergency care without an appointment for minor illnesses, injuries and general health, including renewals and lab follow-up when there is no family doctor.

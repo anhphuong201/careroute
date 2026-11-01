@@ -11,6 +11,9 @@ export interface ErWaitSite {
   /** Who the site serves, as published (e.g. "17 and older"). */
   audience: string | null;
   note: string | null;
+  /** Opening hours in OSM-style text ("24/7", "Mo 08:00-20:00; …"), if the feed provides them. */
+  hours?: string | null;
+  phone?: string | null;
   url: string | null;
 }
 

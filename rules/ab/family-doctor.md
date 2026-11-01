@@ -7,11 +7,16 @@ source_url: https://albertafindaprovider.ca/
 sources:
   - title: "Alberta Find a Provider – Primary Care Alberta"
     url: https://albertafindaprovider.ca/
-last_reviewed: 2026-10-31
+  - title: "Navigating care options – Primary Care Alberta"
+    url: https://www.primarycarealberta.ca/page14142.aspx
+last_reviewed: 2026-11-01
 status: draft   # drafted from the official pages below; needs team/mentor review
 ---
 
 # AB – Contact your own family doctor or nurse practitioner first
+
+## What Primary Care Alberta says
+- Family doctors provide ongoing, complete care for people of all ages and support specialist or hospital care when needed. If your doctor needs advice from a specialist, they can refer you.
 
 ## When this route fits
 - The person HAS a family doctor or nurse practitioner, and can reach them in the time they need.

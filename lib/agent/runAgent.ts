@@ -11,6 +11,7 @@ import { PROVINCES, type ProvinceCode } from "../provinces";
 import { getRule, searchCareRules, type NeedType } from "../tools/careRules";
 import { checkErWaits, findFacilities, type Facility, type FacilityKind } from "../tools/facilities";
 import { lookupMedication } from "../tools/medication";
+import { symptomGuide } from "../tools/symptomGuide";
 import { TOOLS } from "../tools/definitions";
 import { SYSTEM_PROMPT, userTurn } from "./prompt";
 import { defaultLlm } from "../llm";
@@ -53,6 +54,8 @@ export type AgentResult =
       facilities: (Facility & { wait_minutes?: number | null })[];
       er_waits_source?: { name: string; url: string; refreshed_at: string };
       registry?: SourcedRule;
+      alternatives: { rule: SourcedRule; when: string; facility_kind: FacilityKind | null }[];
+      guide?: { title: string; url: string };
       location_needed: boolean;
     }
   | { type: "error"; message: string };
@@ -96,6 +99,7 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
   const seenFacilities = new Map<string, Facility>();
   let waits: ReturnType<typeof checkErWaits> | null = null;
   let locationNeeded = false;
+  const guides = new Map<string, string>(); // url → title, from symptom_guide
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const res = await llm.complete({ system: SYSTEM_PROMPT, tools: TOOLS, turns });
@@ -144,6 +148,12 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           });
           out.rules.forEach((r) => seenRuleIds.add(r.rule_id));
           results.push(ok(out));
+          break;
+        }
+        case "symptom_guide": {
+          const g = await symptomGuide(String(args.query || ""), input.ageGroup);
+          if (g.found) guides.set(g.url, g.title);
+          results.push(ok(g));
           break;
         }
         case "lookup_medication":
@@ -202,6 +212,13 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             input.hasFamilyDoctor !== "yes"
               ? toSourced(input.province, regId) ?? toSourced(input.province, `${province.dir}-registry`)
               : undefined;
+          const KINDS = ["pharmacy", "walk_in", "urgent_care", "virtual"];
+          const alternatives = (Array.isArray(args.alternatives) ? (args.alternatives as Record<string, unknown>[]) : [])
+            .map((a) => ({ rule: toSourced(input.province, String(a.rule_id || "")), when: String(a.when || ""), k: String(a.facility_kind || "none") }))
+            .filter((a): a is { rule: SourcedRule; when: string; k: string } => !!a.rule && seenRuleIds.has(a.rule.rule_id) && a.rule.rule_id !== rule.rule_id && !!a.when)
+            .slice(0, 3)
+            .map((a) => ({ rule: a.rule, when: a.when, facility_kind: (KINDS.includes(a.k) ? a.k : null) as FacilityKind | null }));
+          const guideUrl = String(args.guide_url || "");
           return {
             type: "route",
             language: need?.language ?? "en",
@@ -214,6 +231,8 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             facilities: facilities.slice(0, 5).map((f) => (waitById.has(f.id) ? { ...f, wait_minutes: waitById.get(f.id) } : f)),
             er_waits_source: waits?.available ? { name: waits.source_name!, url: waits.source_url!, refreshed_at: waits.refreshed_at! } : undefined,
             registry: registry && registry.rule_id !== rule.rule_id ? registry : undefined,
+            alternatives,
+            guide: guides.has(guideUrl) ? { title: guides.get(guideUrl)!, url: guideUrl } : undefined,
             location_needed: locationNeeded && facilities.length === 0,
           };
         }
