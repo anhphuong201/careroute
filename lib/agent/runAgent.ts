@@ -56,6 +56,8 @@ export type AgentResult =
       registry?: SourcedRule;
       alternatives: { rule: SourcedRule; when: string; facility_kind: FacilityKind | null }[];
       guide?: { title: string; url: string };
+      /** English reason-for-visit text for booking forms / phone calls. */
+      booking_note: string;
       location_needed: boolean;
     }
   | { type: "error"; message: string };
@@ -233,6 +235,7 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             registry: registry && registry.rule_id !== rule.rule_id ? registry : undefined,
             alternatives,
             guide: guides.has(guideUrl) ? { title: guides.get(guideUrl)!, url: guideUrl } : undefined,
+            booking_note: (String(args.booking_note_en || "") || need?.summary || "").slice(0, 300),
             location_needed: locationNeeded && facilities.length === 0,
           };
         }

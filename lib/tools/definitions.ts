@@ -91,6 +91,11 @@ export const TOOLS: Tool[] = [
         }),
       },
       guide_url: { type: "string", description: "URL returned by symptom_guide if you used it, else an empty string." },
+      booking_note_en: {
+        type: "string",
+        description:
+          "Reason for visit to paste into a booking form or say on the phone, in plain ENGLISH, max 2 short sentences: the person's symptoms or need in their own terms and how long. No diagnosis, no names, no health card or other identifiers. E.g. 'Burning when urinating for 2 days. No fever.'",
+      },
     }),
   },
   {

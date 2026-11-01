@@ -13,6 +13,15 @@ export interface HouseholdMember {
   hasFamilyDoctor: "yes" | "no" | "hard_to_access";
   /** Synthea persona id in /data/personas (prototype only). */
   personaId?: string;
+  /** Optional booking details. Stored only on this device (localStorage, with consent); never sent to the server. */
+  contact?: BookingContact;
+}
+
+export interface BookingContact {
+  legalName?: string;
+  phone?: string;
+  email?: string;
+  healthCard?: string;
 }
 
 export interface Household {
@@ -33,6 +42,9 @@ export interface SearchRecord {
   routeTitle?: string;
   language?: string;
   bookingCode?: string;
+  bookingPlace?: string;
+  bookingTime?: string;
+  bookingReal?: boolean;
   reason: string;
   sourceUrl: string;
 }

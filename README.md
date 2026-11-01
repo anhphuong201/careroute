@@ -34,6 +34,7 @@ User ─► safety checklist (tap = emergency screen, no AI)
      ─► /api/summary → one-page PDF (FHIR IPS layout) from /data/personas
 ```
 - The model never sees `check_red_flags`, `book_appointment` or `build_summary`; the server runs them.
+- **Assisted booking:** pharmacies with a verified online booking page (Shoppers Drug Mart and Rexall in AB/BC, B.C.'s Book a Pharmacist site) get a "Book online" button that opens the real page plus a booking helper with copy buttons for the store, an AI-written reason for visit, and the person's saved details. Booking details (name, health card, phone, email) are stored only in the browser, with consent, and are never sent to the server. "I booked it" saves the appointment to history, the PDF summary and an `.ics` calendar file.
 - Province and location are injected by the server, not chosen by the model.
 - AI provider is pluggable (`lib/llm/`): OpenAI Chat Completions with strict function calling (default when `OPENAI_API_KEY` is set), or the Claude Messages API. The safety gates, rule validation and source links are provider-independent.
 - Tests: `npm test` covers red-flag rules (many languages), data parsing, and the agent loop with a scripted fake model.

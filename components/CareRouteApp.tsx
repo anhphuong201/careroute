@@ -10,6 +10,8 @@ import type { AgentResult } from "@/lib/agent/runAgent";
 import type { RedFlagAction, RedFlagCategory } from "@/lib/safety/redFlags";
 import type { Booking } from "@/lib/tools/booking";
 import { fmtMinute, fmtWeekday, openStatus, parseHours, weekLines } from "@/lib/data/hours";
+import BookingHelper from "@/components/BookingHelper";
+import { icsFor } from "@/lib/client/bookingHelper";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -118,6 +120,8 @@ export default function CareRouteApp() {
   const [clarifyA, setClarifyA] = useState("");
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<Option | null>(null);
+  const [helperFor, setHelperFor] = useState<Option | null>(null);
+  const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [history, setHistory] = useState<SearchRecord[]>([]);
@@ -260,6 +264,43 @@ export default function CareRouteApp() {
     setScreen("booked");
   }
 
+  function saveRealBooking(f: Option, b: { when: Date; code: string }) {
+    const real: Booking = {
+      simulated: false,
+      confirmation_code: b.code,
+      facility_id: f.id,
+      facility_name: f.name,
+      facility_address: fullAddress(f),
+      for_member: member.displayName || t.me,
+      slot: b.when.toISOString(),
+      instructions: f.kind === "pharmacy" ? "Bring your health card and your medicine bottle or list." : "Bring your health card, your medicine list and your CareRoute summary.",
+    };
+    setBooking(real);
+    if (result)
+      record({
+        route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url,
+        bookingCode: b.code || undefined, bookingPlace: f.name, bookingTime: real.slot, bookingReal: true,
+      });
+    setHelperFor(null);
+    setScreen("booked");
+  }
+
+  function downloadCalendar(b: Booking) {
+    const ics = icsFor({
+      title: `${b.simulated ? "[SIMULATED] " : ""}Appointment – ${b.facility_name}`,
+      start: new Date(b.slot),
+      location: b.facility_address,
+      description: [result?.booking_note, b.confirmation_code ? `Confirmation: ${b.confirmation_code}` : "", "Bring your health card and medicine list."].filter(Boolean).join("\n"),
+      uid: `${b.confirmation_code || b.slot}@careroute`,
+    });
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "careroute-appointment.ics";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
   async function downloadSummary(m: HouseholdMember) {
     if (!m.personaId) return;
     const forThisSearch = m.id === member.id;
@@ -274,7 +315,7 @@ export default function CareRouteApp() {
               needSummaryEn: result?.need_summary_en,
               routeTitle: result?.rule.title,
               routeSourceUrl: result?.rule.source_url,
-              booking: booking ? { facility_name: booking.facility_name, slot: booking.slot, confirmation_code: booking.confirmation_code } : undefined,
+              booking: booking ? { facility_name: booking.facility_name, slot: booking.slot, confirmation_code: booking.confirmation_code, simulated: booking.simulated } : undefined,
             }
           : { province },
       }),
@@ -427,7 +468,13 @@ export default function CareRouteApp() {
               }}
               onSave={saveHousehold}
               onDemo={() => saveHousehold({ ...household, members: DEMO[province] })}
-              onDone={() => setScreen("home")}
+              editId={editMemberId}
+              guest={guest}
+              onSelect={setMemberId}
+              onDone={() => {
+                setEditMemberId(null);
+                setScreen(result ? "result" : "home");
+              }}
             />
           )}
 
@@ -546,6 +593,7 @@ export default function CareRouteApp() {
                 setChosen(o);
                 setScreen("book");
               }}
+              onHelper={setHelperFor}
               onNeedLocation={() => setScreen("need")}
             />
           )}
@@ -557,7 +605,7 @@ export default function CareRouteApp() {
           {screen === "booked" && booking && (
             <section>
               <div className="card card-booked" role="status">
-                <span className="badge">{t.simulated}</span>
+                {booking.simulated ? <span className="badge">{t.simulated}</span> : <span className="badge badge-real">{t.realBooking}</span>}
                 <h1>✅ {t.booked}</h1>
                 <p className="big">
                   <strong>{booking.facility_name}</strong>
@@ -567,11 +615,14 @@ export default function CareRouteApp() {
                 <div className="stats">
                   <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })} label={t.selectDate} />
                   <Stat icon="🕒" value={new Date(booking.slot).toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" })} label={t.time} />
-                  <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />
+                  {booking.confirmation_code && <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />}
                 </div>
                 <p>
                   <strong>{t.bring}:</strong> {booking.instructions}
                 </p>
+                <button className="btn btn-soft" onClick={() => downloadCalendar(booking)}>
+                  📆 {t.addToCalendar}
+                </button>
               </div>
               <SummaryCard t={t} member={member} onDownload={() => downloadSummary(member)} />
               <button className="btn btn-ghost" onClick={() => setScreen("result")}>
@@ -606,7 +657,14 @@ export default function CareRouteApp() {
                               {t.source} ↗
                             </a>
                           )}
-                          {h.bookingCode && <span className="badge">{t.simulated} · {h.bookingCode}</span>}
+                          {h.bookingReal ? (
+                            <span className="badge badge-real">
+                              {t.realBooking} · {h.bookingPlace}
+                              {h.bookingTime ? ` · ${new Date(h.bookingTime).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                            </span>
+                          ) : (
+                            h.bookingCode && <span className="badge">{t.simulated} · {h.bookingCode}</span>
+                          )}
                         </div>
                       </div>
                     </li>
@@ -668,7 +726,24 @@ export default function CareRouteApp() {
         </footer>
       </main>
 
-      {showNav && (
+      {helperFor && result && (
+        <BookingHelper
+          t={t}
+          lang={lang}
+          place={helperFor}
+          member={member}
+          reason={result.booking_note}
+          onClose={() => setHelperFor(null)}
+          onSaved={(b) => saveRealBooking(helperFor, b)}
+          onAddDetails={() => {
+            setHelperFor(null);
+            setEditMemberId(member.id);
+            setScreen("household");
+          }}
+        />
+      )}
+
+      {showNav && !helperFor && (
         <nav className="bottom-nav" aria-label="Main">
           <NavBtn icon="🏠" label={t.navHome} on={screen === "home"} onClick={() => setScreen("home")} />
           <NavBtn icon="🕘" label={t.navHistory} on={screen === "history"} onClick={() => setScreen("history")} />
@@ -827,11 +902,23 @@ function HouseholdEditor(props: {
   onConsent: (v: boolean) => void;
   onSave: (h: Household) => void;
   onDemo: () => void;
+  editId?: string | null;
+  guest?: HouseholdMember;
+  onSelect?: (id: string) => void;
   onDone: () => void;
 }) {
   const { t, household, personas } = props;
   const blank: HouseholdMember = { id: "", displayName: "", ageGroup: "adult", hasFamilyDoctor: "no" };
-  const [draft, setDraft] = useState<HouseholdMember | null>(null);
+  // Opened from the booking helper: edit that person (or turn "Me" into a saved person).
+  const [draft, setDraft] = useState<HouseholdMember | null>(() => {
+    if (!props.editId) return null;
+    const m = household.members.find((x) => x.id === props.editId);
+    if (m) return { ...m };
+    if (props.editId === "guest" && props.guest) return { ...props.guest, id: "", displayName: props.guest.displayName || t.me };
+    return null;
+  });
+  const setContact = (k: keyof NonNullable<HouseholdMember["contact"]>, v: string) =>
+    draft && setDraft({ ...draft, contact: { ...(draft.contact ?? {}), [k]: v } });
 
   return (
     <section>
@@ -858,9 +945,15 @@ function HouseholdEditor(props: {
                 </span>
               </span>
             </span>
-            <button className="btn-small" onClick={() => props.onSave({ ...household, members: household.members.filter((x) => x.id !== m.id) })}>
-              {t.remove}
-            </button>
+            <span className="row">
+              <button className="btn-small" onClick={() => setDraft({ ...m })}>
+                ✏️
+                <span className="sr-only">{m.displayName}</span>
+              </button>
+              <button className="btn-small" onClick={() => props.onSave({ ...household, members: household.members.filter((x) => x.id !== m.id) })}>
+                {t.remove}
+              </button>
+            </span>
           </li>
         ))}
       </ul>
@@ -887,12 +980,37 @@ function HouseholdEditor(props: {
               </option>
             ))}
           </select>
+          <fieldset className="contact-fields">
+            <legend>🔒 {t.bookingDetails}</legend>
+            <p className="small muted">{t.bookingDetailsHelp}</p>
+            <label className="label" htmlFor="c-name">
+              {t.legalName}
+            </label>
+            <input id="c-name" autoComplete="name" value={draft.contact?.legalName ?? ""} onChange={(e) => setContact("legalName", e.target.value)} />
+            <label className="label" htmlFor="c-card">
+              {t.healthCard}
+            </label>
+            <input id="c-card" inputMode="numeric" autoComplete="off" value={draft.contact?.healthCard ?? ""} onChange={(e) => setContact("healthCard", e.target.value)} />
+            <label className="label" htmlFor="c-phone">
+              {t.phoneLabel}
+            </label>
+            <input id="c-phone" type="tel" autoComplete="tel" value={draft.contact?.phone ?? ""} onChange={(e) => setContact("phone", e.target.value)} />
+            <label className="label" htmlFor="c-email">
+              {t.emailLabel}
+            </label>
+            <input id="c-email" type="email" autoComplete="email" value={draft.contact?.email ?? ""} onChange={(e) => setContact("email", e.target.value)} />
+          </fieldset>
           <button
             className="btn"
             disabled={!draft.displayName.trim()}
             onClick={() => {
-              props.onSave({ ...household, members: [...household.members, { ...draft, id: uid() }] });
+              const exists = household.members.some((x) => x.id === draft.id);
+              const saved = exists ? draft : { ...draft, id: uid() };
+              const members = exists ? household.members.map((x) => (x.id === draft.id ? saved : x)) : [...household.members, saved];
+              props.onSave({ ...household, members });
+              if (props.editId) props.onSelect?.(saved.id);
               setDraft(null);
+              if (props.editId) props.onDone();
             }}
           >
             {t.save}
@@ -979,6 +1097,7 @@ function Result(props: {
   location: { lat: number; lng: number } | null;
   result: RouteResult;
   onChoose: (o: Option) => void;
+  onHelper: (o: Option) => void;
   onNeedLocation: () => void;
 }) {
   const { t, loc, result: r, province } = props;
@@ -1033,7 +1152,7 @@ function Result(props: {
           <SectionHead title={t.otherOptions} />
           <ul className="list">
             {r.alternatives.map((a) => (
-              <Alternative key={a.rule.rule_id} t={t} loc={loc} tz={tz} province={province} location={props.location} alt={a} rtl={rtl} lang={r.language} onChoose={props.onChoose} />
+              <Alternative key={a.rule.rule_id} t={t} loc={loc} tz={tz} province={province} location={props.location} alt={a} rtl={rtl} lang={r.language} onChoose={props.onChoose} onHelper={props.onHelper} />
             ))}
           </ul>
         </>
@@ -1052,7 +1171,7 @@ function Result(props: {
           )}
           <ul className="list">
             {r.facilities.map((f) => (
-              <OptionCard key={f.id} t={t} loc={loc} tz={tz} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} />
+              <OptionCard key={f.id} t={t} loc={loc} tz={tz} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
             ))}
           </ul>
         </>
@@ -1071,6 +1190,7 @@ function Alternative(props: {
   rtl: boolean;
   lang: string;
   onChoose: (o: Option) => void;
+  onHelper: (o: Option) => void;
 }) {
   const { t, alt } = props;
   const [places, setPlaces] = useState<{ facilities: Option[]; er_waits_source?: RouteResult["er_waits_source"]; location_needed: boolean } | null>(null);
@@ -1129,7 +1249,7 @@ function Alternative(props: {
         <ul className="list nested">
           {places.location_needed && <p className="small muted">{t.shareLocationForOptions}</p>}
           {places.facilities.map((f) => (
-            <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places.er_waits_source} onChoose={() => props.onChoose(f)} />
+            <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
           ))}
         </ul>
       )}
@@ -1169,7 +1289,7 @@ function OpenBadge({ t, loc, tz, hours }: { t: Strings; loc: string; tz: string;
   );
 }
 
-function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc: string; tz: string; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void }) {
+function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Strings; loc: string; tz: string; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void; onHelper: () => void }) {
   const virtual = f.kind === "virtual";
   return (
     <li className="card option">
@@ -1270,7 +1390,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc:
       </div>
       {f.booking && (
         <div className="book-real">
-          <a className="btn btn-book-real" href={f.booking.url} target="_blank" rel="noreferrer">
+          <a className="btn btn-book-real" href={f.booking.url} target="_blank" rel="noreferrer" onClick={onHelper}>
             📅 {t.bookOnline} ↗
           </a>
           <p className="small muted">
@@ -1280,6 +1400,11 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc:
             </a>
           </p>
         </div>
+      )}
+      {!f.booking && f.phone && f.kind !== "virtual" && (
+        <button className="link-btn" onClick={onHelper}>
+          📝 {t.callHelper}
+        </button>
       )}
       <a className="link-small" href={f.source_url} target="_blank" rel="noreferrer">
         {t.source}: {f.source_title ?? f.source} ↗

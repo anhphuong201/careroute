@@ -264,3 +264,19 @@ textarea, input, select { width: 100%; font: inherit; font-size: 1.05rem; paddin
 .book-real { margin-top: 0.6rem; }
 .btn-book-real { margin: 0.2rem 0 0.3rem; min-height: 52px; background: var(--ok); border-color: var(--ok); }
 .btn-book-real:hover { background: var(--ok); border-color: var(--ok); filter: brightness(0.92); }
+
+/* ── assisted booking ── */
+.helper { max-height: 92vh; overflow-y: auto; }
+.helper h3 { font-size: 0.95rem; margin: 1rem 0 0.3rem; }
+.helper-actions { display: flex; flex-direction: column; gap: 0; }
+.copy-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); margin: 0.35rem 0; }
+.copy-text { flex: 1; min-width: 0; }
+.copy-label { display: block; font-size: 0.75rem; color: var(--muted); }
+.copy-value { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.btn-mini { flex: none; min-height: 40px; min-width: 64px; padding: 0.3rem 0.7rem; border-radius: 999px; border: 1px solid var(--primary); background: var(--surface); color: var(--primary); font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+.btn-mini.is-done { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.btn-mini:focus-visible { outline: 4px solid var(--focus); outline-offset: 2px; }
+.helper-done { margin-top: 1rem; box-shadow: none; }
+.badge-real { background: var(--ok); color: #fff; }
+.contact-fields { border: 1px dashed var(--border); border-radius: 18px; padding: 0.6rem 0.9rem 0.9rem; margin: 1rem 0 0.4rem; }
+.contact-fields legend { font-weight: 700; padding: 0 0.3rem; }

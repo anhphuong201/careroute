@@ -13,7 +13,7 @@ export interface VisitContext {
   needSummaryEn?: string;
   routeTitle?: string;
   routeSourceUrl?: string;
-  booking?: { facility_name: string; slot: string; confirmation_code: string };
+  booking?: { facility_name: string; slot: string; confirmation_code: string; simulated?: boolean };
 }
 
 /** Standard PDF fonts only support Latin-1 (WinAnsi); replace anything else. */
@@ -89,7 +89,11 @@ export async function buildSummaryPdf(p: PersonaSummary, visit: VisitContext): P
   if (visit.needSummaryEn) today.push(`Reason for seeking care (in the patient's words, translated): ${visit.needSummaryEn}`);
   if (visit.routeTitle) today.push(`Suggested route: ${visit.routeTitle}${visit.routeSourceUrl ? ` (source: ${visit.routeSourceUrl})` : ""}`);
   if (visit.booking)
-    today.push(`Simulated booking: ${visit.booking.facility_name}, ${new Date(visit.booking.slot).toLocaleString("en-CA")} - code ${visit.booking.confirmation_code} (not a real appointment)`);
+    today.push(
+      visit.booking.simulated === false
+        ? `Appointment booked by the patient: ${visit.booking.facility_name}, ${new Date(visit.booking.slot).toLocaleString("en-CA")}${visit.booking.confirmation_code ? ` - confirmation ${visit.booking.confirmation_code}` : ""}`
+        : `Simulated booking: ${visit.booking.facility_name}, ${new Date(visit.booking.slot).toLocaleString("en-CA")} - code ${visit.booking.confirmation_code} (not a real appointment)`,
+    );
   section("Today", today, "No request recorded");
 
   section("Allergies and intolerances", p.allergies.map((a) => a.text + (a.reaction ? ` - reaction: ${a.reaction}` : "")), "No known allergies recorded");

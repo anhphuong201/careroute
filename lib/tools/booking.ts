@@ -5,7 +5,8 @@
 import type { Facility } from "./facilities";
 
 export interface Booking {
-  simulated: true;
+  /** true = mock booking made by CareRoute; false = a real booking the user made on the provider's site. */
+  simulated: boolean;
   confirmation_code: string;
   facility_id: string;
   facility_name: string;

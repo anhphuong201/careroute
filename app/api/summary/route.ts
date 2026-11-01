@@ -19,7 +19,8 @@ export async function POST(req: Request) {
     booking: v.booking && {
       facility_name: s(v.booking.facility_name, 120) ?? "",
       slot: s(v.booking.slot, 40) ?? "",
-      confirmation_code: s(v.booking.confirmation_code, 20) ?? "",
+      confirmation_code: s(v.booking.confirmation_code, 40) ?? "",
+      simulated: v.booking.simulated !== false,
     },
   });
   return new Response(new Uint8Array(pdf), {
