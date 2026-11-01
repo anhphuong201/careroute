@@ -5,6 +5,7 @@ import { parseCsv } from "../data/csv";
 import { haversineKm } from "../data/geo";
 import { PROVINCES, type ProvinceCode } from "../provinces";
 import type { ErWaitsFile, ErWaitSite } from "../data/erTypes";
+import { bookingFor, type BookingLink } from "../data/pharmacyBooking";
 
 export type FacilityKind = "pharmacy" | "walk_in" | "urgent_care" | "emergency" | "virtual";
 
@@ -32,6 +33,8 @@ export interface Facility {
   limits?: string;
   official?: boolean;
   source_title?: string;
+  /** Real online booking page (pharmacies), if one is verified. */
+  booking?: BookingLink;
 }
 
 interface VirtualFile {
@@ -94,6 +97,7 @@ export function loadFacilities(p: ProvinceCode): Facility[] {
     website: r.website,
     source: r.source ?? "",
     source_url: r.source_url,
+    booking: bookingFor(r.name, p),
   }));
   const all = [...fac, ...ph].filter((f) => Number.isFinite(f.lat) && Number.isFinite(f.lng) && f.name && !/PLACEHOLDER/.test(f.name));
   cache.set(p, all);

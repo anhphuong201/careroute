@@ -179,6 +179,7 @@ const en = {
   findPhone: "Find phone",
   weekHours: "Opening hours",
   closed: "Closed",
+  bookOnline: "Book online",
   routeNames: {
     pharmacist: "See a pharmacist",
     virtual_care: "Virtual care (phone or video)",
@@ -365,6 +366,7 @@ const fr: typeof en = {
   findPhone: "Trouver le numéro",
   weekHours: "Heures d'ouverture",
   closed: "Fermé",
+  bookOnline: "Réserver en ligne",
   routeNames: {
     pharmacist: "Voir un pharmacien",
     virtual_care: "Soins virtuels (téléphone ou vidéo)",

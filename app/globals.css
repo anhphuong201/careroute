@@ -261,3 +261,6 @@ textarea, input, select { width: 100%; font: inherit; font-size: 1.05rem; paddin
 .nested { margin-top: 0.6rem; }
 .nested .card { box-shadow: none; background: var(--surface-2); }
 .chip.on { background: var(--primary-soft); border-color: var(--primary); font-weight: 700; }
+.book-real { margin-top: 0.6rem; }
+.btn-book-real { margin: 0.2rem 0 0.3rem; min-height: 52px; background: var(--ok); border-color: var(--ok); }
+.btn-book-real:hover { background: var(--ok); border-color: var(--ok); filter: brightness(0.92); }

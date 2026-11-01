@@ -20,6 +20,18 @@ type Persona = { id: string; name: string; note: string; birthDate: string; prov
 
 /* ───────────────────────── helpers ───────────────────────── */
 
+/**
+ * Google Maps link that shows the place by NAME (not raw coordinates).
+ * With a street address: directions to "name, address, city".
+ * Without one (common in OpenStreetMap): search the name centred on the exact location,
+ * so "Shoppers Drug Mart" lands on this branch, not another one in the city.
+ */
+const hasStreet = (a: string) => /\d/.test(a.split(",")[0] ?? "");
+const mapsUrl = (f: { name: string; address: string; city: string; lat: number; lng: number }) =>
+  hasStreet(f.address)
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([f.name, f.address, f.city].filter(Boolean).join(", "))}`
+    : `https://www.google.com/maps/search/${encodeURIComponent(f.name)}/@${f.lat},${f.lng},18z`;
+
 const fullAddress = (f: { address: string; city: string }) =>
   f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address || f.city;
 
@@ -1219,7 +1231,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc:
           ) : (
             <p className="small muted">
               📞 {t.phoneNotListed} ·{" "}
-              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${f.name} ${f.address} ${f.city}`)}`} target="_blank" rel="noreferrer">
+              <a href={mapsUrl(f)} target="_blank" rel="noreferrer">
                 {t.findPhone} ↗
               </a>
             </p>
@@ -1242,11 +1254,11 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc:
             </a>
           )
         ) : (
-          <a className="btn-outline" href={`https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}`} target="_blank" rel="noreferrer">
+          <a className="btn-outline" href={mapsUrl(f)} target="_blank" rel="noreferrer">
             🗺 {t.directions}
           </a>
         )}
-        {virtual && f.phone === "811" ? (
+        {f.booking ? null : virtual && f.phone === "811" ? (
           <a className="round-go" href="tel:811" aria-label={`${t.call811}: ${f.name}`}>
             📞
           </a>
@@ -1256,6 +1268,19 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose }: { t: Strings; loc:
           </button>
         )}
       </div>
+      {f.booking && (
+        <div className="book-real">
+          <a className="btn btn-book-real" href={f.booking.url} target="_blank" rel="noreferrer">
+            📅 {t.bookOnline} ↗
+          </a>
+          <p className="small muted">
+            {f.booking.note}{" "}
+            <a href={f.booking.source_url} target="_blank" rel="noreferrer">
+              {t.source}: {f.booking.source_title}
+            </a>
+          </p>
+        </div>
+      )}
       <a className="link-small" href={f.source_url} target="_blank" rel="noreferrer">
         {t.source}: {f.source_title ?? f.source} ↗
       </a>
