@@ -45,9 +45,11 @@ describe("real pharmacy booking links", () => {
   it("adds Rexall's booking page in Alberta and the provincial site in B.C.", async () => {
     const { bookingFor } = await import("../data/pharmacyBooking");
     expect(bookingFor("Rexall", "AB")?.url).toMatch(/^https:\/\/rexall\.medmeapp\.com\//);
-    expect(bookingFor("Shoppers Drug Mart", "BC")?.url).toBe("https://bookapharmacist.gov.bc.ca/s/");
+    expect(bookingFor("London Drugs", "BC")?.url).toBe("https://bookapharmacist.gov.bc.ca/s/");
+    expect(bookingFor("Shoppers Drug Mart", "BC")?.url).toMatch(/shoppersdrugmart\.medmeapp\.com.*province=BC/);
     expect(bookingFor("Rexall", "BC")?.url).toMatch(/rexall/);
-    expect(bookingFor("Shoppers Drug Mart", "AB")).toBeUndefined();
+    expect(bookingFor("Shoppers Drug Mart", "AB")?.url).toMatch(/province=AB/);
+    expect(bookingFor("Pharmasave", "AB")).toBeUndefined();
   });
   it("attaches booking to nearby pharmacies", () => {
     const r = findFacilities({ province: "BC", kind: "pharmacy", lat: 49.2827, lng: -123.1207, limit: 3 });

@@ -21,6 +21,15 @@ const REXALL: BookingLink = {
   source_url: "https://www.rexall.ca/",
 };
 
+/** Shoppers Drug Mart "Pharmacy Care Clinic" booking (MedMe), verified loading for AB and BC. */
+const shoppers = (province: ProvinceCode): BookingLink => ({
+  url: `https://shoppersdrugmart.medmeapp.com/schedule/activity-groups/pharmacistClinic?filters=clinic&province=${province}`,
+  label: "Shoppers Drug Mart – Pharmacy Care Clinic",
+  note: "Book a consultation with a Shoppers pharmacist at select stores. Choose this store when booking.",
+  source_title: "Shoppers Drug Mart Pharmacy Care Clinic booking",
+  source_url: `https://shoppersdrugmart.medmeapp.com/schedule/activity-groups/pharmacistClinic?filters=clinic&province=${province}`,
+});
+
 const BC_PROVINCIAL: BookingLink = {
   url: "https://bookapharmacist.gov.bc.ca/s/",
   label: "Book a Pharmacist (Government of B.C.)",
@@ -31,6 +40,7 @@ const BC_PROVINCIAL: BookingLink = {
 
 export function bookingFor(name: string, province: ProvinceCode): BookingLink | undefined {
   if (/\brexall\b/i.test(name)) return REXALL;
+  if (/shoppers\s*drug\s*mart/i.test(name)) return shoppers(province);
   if (province === "BC") return BC_PROVINCIAL;
   return undefined;
 }
