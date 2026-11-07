@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STRINGS, type Lang, type Strings } from "@/lib/i18n";
-import { ENABLED_PROVINCES, PROVINCES, type ProvinceCode } from "@/lib/provinces";
+import { ALL_REGIONS, PROVINCES, isEnabledProvince, type ProvinceCode } from "@/lib/provinces";
 import { CITIES } from "@/lib/cities";
 import { storage } from "@/lib/client/storage";
 import type { AgeGroup, Household, HouseholdMember, SearchRecord } from "@/lib/types";
@@ -12,6 +12,7 @@ import type { Booking } from "@/lib/tools/booking";
 import { fmtMinute, fmtWeekday, openStatus, parseHours, weekLines } from "@/lib/data/hours";
 import BookingHelper from "@/components/BookingHelper";
 import { icsFor } from "@/lib/client/bookingHelper";
+import { FREE_WINDOWS, googleCalendarUrl } from "@/lib/client/suggest";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -33,6 +34,28 @@ const mapsUrl = (f: { name: string; address: string; city: string; lat: number; 
   hasStreet(f.address)
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([f.name, f.address, f.city].filter(Boolean).join(", "))}`
     : `https://www.google.com/maps/search/${encodeURIComponent(f.name)}/@${f.lat},${f.lng},18z`;
+
+/** Google Maps public-transit directions to the place. */
+const transitUrl = (f: { name: string; address: string; city: string; lat: number; lng: number }) => {
+  const dest = hasStreet(f.address) ? [f.name, f.address, f.city].filter(Boolean).join(", ") : `${f.lat},${f.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=transit`;
+};
+
+/**
+ * Uber universal link: opens the Uber app (or m.uber.com) with the drop-off filled in.
+ * The rider still chooses the car, sees the price and confirms inside Uber – nothing is booked here.
+ */
+const uberUrl = (f: { name: string; address: string; city: string; lat: number; lng: number }) => {
+  const q = new URLSearchParams({
+    action: "setPickup",
+    pickup: "my_location",
+    "dropoff[latitude]": String(f.lat),
+    "dropoff[longitude]": String(f.lng),
+    "dropoff[nickname]": f.name,
+    "dropoff[formatted_address]": [f.address, f.city].filter(Boolean).join(", ") || f.name,
+  });
+  return `https://m.uber.com/ul/?${q.toString()}`;
+};
 
 const fullAddress = (f: { address: string; city: string }) =>
   f.city && !f.address.toLowerCase().includes(f.city.toLowerCase()) ? [f.address, f.city].filter(Boolean).join(", ") : f.address || f.city;
@@ -390,13 +413,20 @@ export default function CareRouteApp() {
                 <span className="search-ph">{text || t.searchPlaceholder}</span>
               </button>
 
-              <div className="segmented" role="group" aria-label={t.province}>
-                {ENABLED_PROVINCES.map((p) => (
-                  <button key={p.code} className={province === p.code ? "on" : ""} aria-pressed={province === p.code} onClick={() => chooseProvince(p.code)}>
-                    {p.name}
-                  </button>
-                ))}
+              <label className="label" htmlFor="province">
+                📍 {t.province}
+              </label>
+              <div className="province-picker">
+                <select id="province" value={province} onChange={(e) => isEnabledProvince(e.target.value) && chooseProvince(e.target.value)}>
+                  {ALL_REGIONS.map((r) => (
+                    <option key={r.code} value={r.code} disabled={!isEnabledProvince(r.code)}>
+                      {lang === "fr" ? r.nameFr : r.name}
+                      {isEnabledProvince(r.code) ? "" : ` – ${t.comingSoon}`}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <p className="help small">{t.provinceNote}</p>
 
               <SectionHead title={t.categories} />
               <div className="cat-scroll">
@@ -623,6 +653,19 @@ export default function CareRouteApp() {
                 <button className="btn btn-soft" onClick={() => downloadCalendar(booking)}>
                   📆 {t.addToCalendar}
                 </button>
+                <a
+                  className="btn btn-ghost"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={googleCalendarUrl({
+                    title: `${booking.simulated ? "[SIMULATED] " : ""}Appointment – ${booking.facility_name}`,
+                    start: new Date(booking.slot),
+                    location: booking.facility_address,
+                    details: [result?.booking_note, booking.confirmation_code ? `Confirmation: ${booking.confirmation_code}` : ""].filter(Boolean).join("\n"),
+                  })}
+                >
+                  📅 {t.addGoogleCal} ↗
+                </a>
               </div>
               <SummaryCard t={t} member={member} onDownload={() => downloadSummary(member)} />
               <button className="btn btn-ghost" onClick={() => setScreen("result")}>
@@ -999,6 +1042,24 @@ function HouseholdEditor(props: {
               {t.emailLabel}
             </label>
             <input id="c-email" type="email" autoComplete="email" value={draft.contact?.email ?? ""} onChange={(e) => setContact("email", e.target.value)} />
+            <p className="label">🗓 {t.freeTimes}</p>
+            <p className="small muted">{t.freeTimesHelp}</p>
+            <div className="chips">
+              {Object.keys(FREE_WINDOWS).map((k) => {
+                const on = (draft.freeTimes ?? []).includes(k);
+                return (
+                  <button
+                    key={k}
+                    className={`chip ${on ? "on" : ""}`}
+                    aria-pressed={on}
+                    onClick={() => setDraft({ ...draft, freeTimes: on ? (draft.freeTimes ?? []).filter((x) => x !== k) : [...(draft.freeTimes ?? []), k] })}
+                  >
+                    {on ? "✓ " : ""}
+                    {t.freeSlots[k]}
+                  </button>
+                );
+              })}
+            </div>
           </fieldset>
           <button
             className="btn"
@@ -1090,6 +1151,28 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
   );
 }
 
+function SourceInfo({ t, sources, light }: { t: Strings; sources: { title: string; url: string }[]; light?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!sources.length) return null;
+  return (
+    <span className={`source-info ${light ? "is-light" : ""}`}>
+      <button className="source-btn" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`${t.source} (${sources.length})`} title={t.source}>
+        ⓘ
+      </button>
+      {open && (
+        <span className="source-pop" role="note">
+          <strong>{t.source}</strong>
+          {sources.map((s) => (
+            <a key={s.url + s.title} href={s.url} target="_blank" rel="noreferrer">
+              {s.title} ↗
+            </a>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function Result(props: {
   t: Strings;
   loc: string;
@@ -1104,48 +1187,43 @@ function Result(props: {
   const tz = TZ[province];
   const rtl = ["ar", "fa", "ur", "he"].includes(r.language.slice(0, 2));
   const action = useMemo(() => routeAction(r, t), [r, t]);
+  const [showAll, setShowAll] = useState(false);
+  const heroSources = [
+    ...r.rule.sources,
+    ...(r.guide ? [{ title: `${t.symptomGuide}: HealthLink BC – ${r.guide.title}`, url: r.guide.url }] : []),
+  ];
+  const visible = showAll ? r.facilities : r.facilities.slice(0, 3);
 
   return (
     <section>
-      <div className="route-hero">
-        <p className="route-eyebrow">{t.yourRoute}</p>
+      <div className={`route-hero ${r.no_guideline ? "is-nurse" : ""}`}>
+        <div className="row-between">
+          <p className="route-eyebrow">{r.no_guideline ? t.noGuidelineTitle : t.yourRoute}</p>
+          <SourceInfo t={t} sources={heroSources} light />
+        </div>
         <div className="row-center">
           <span className="route-icon" aria-hidden>
             {ROUTE_ICON[r.rule.route] ?? "➜"}
           </span>
           <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
         </div>
-        <p className="route-why-label">{t.why}</p>
-        <p className="route-reason" dir={rtl ? "rtl" : "auto"} lang={r.language}>
-          {r.reason}
-        </p>
-        <p className="route-msg" dir={rtl ? "rtl" : "auto"} lang={r.language}>
-          {r.message}
-        </p>
-        <a className="route-source" href={r.rule.source_url} target="_blank" rel="noreferrer">
-          {t.source}: {r.rule.sources[0]?.title ?? r.rule.title} ↗
-        </a>
-        {r.guide && (
-          <a className="route-source" href={r.guide.url} target="_blank" rel="noreferrer">
-            {t.symptomGuide}: HealthLink BC – {r.guide.title} ↗
-          </a>
+        {r.no_guideline && !r.reason ? (
+          <p className="route-reason">{t.noGuidelineBody}</p>
+        ) : (
+          <>
+            <p className="route-why-label">{t.why}</p>
+            <p className="route-reason" dir={rtl ? "rtl" : "auto"} lang={r.language}>
+              {r.reason}
+            </p>
+            {r.message && (
+              <p className="route-msg" dir={rtl ? "rtl" : "auto"} lang={r.language}>
+                {r.message}
+              </p>
+            )}
+          </>
         )}
         {action}
       </div>
-
-      {r.registry && (
-        <a className="card registry" href={r.registry.source_url} target="_blank" rel="noreferrer">
-          <span className="tile" aria-hidden>
-            👩‍⚕️
-          </span>
-          <span>
-            <strong>{t.alsoDoctor}</strong>
-            <span className="muted small block">
-              {t.source}: {r.registry.sources[0]?.title ?? r.registry.title} ↗
-            </span>
-          </span>
-        </a>
-      )}
 
       {r.alternatives.length > 0 && (
         <>
@@ -1170,11 +1248,22 @@ function Result(props: {
             </div>
           )}
           <ul className="list">
-            {r.facilities.map((f) => (
+            {visible.map((f) => (
               <OptionCard key={f.id} t={t} loc={loc} tz={tz} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
             ))}
           </ul>
+          {r.facilities.length > 3 && (
+            <button className="btn btn-ghost" onClick={() => setShowAll(!showAll)} aria-expanded={showAll}>
+              {showAll ? t.showFewer : `${t.showMore} (${r.facilities.length - 3})`}
+            </button>
+          )}
         </>
+      )}
+
+      {r.registry && (
+        <a className="registry-line" href={r.registry.source_url} target="_blank" rel="noreferrer">
+          👩‍⚕️ {t.alsoDoctor} ↗
+        </a>
       )}
     </section>
   );
@@ -1196,6 +1285,7 @@ function Alternative(props: {
   const [places, setPlaces] = useState<{ facilities: Option[]; er_waits_source?: RouteResult["er_waits_source"]; location_needed: boolean } | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const isCall = alt.rule.route === "call_811";
 
   async function toggle() {
     if (open) return setOpen(false);
@@ -1214,41 +1304,46 @@ function Alternative(props: {
     }
   }
 
+  const head = (
+    <>
+      <span className="tile" aria-hidden>
+        {ROUTE_ICON[alt.rule.route] ?? "➜"}
+      </span>
+      <span className="option-title">
+        <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
+        <span className="block alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
+          {alt.when}
+        </span>
+      </span>
+      <span className="alt-chevron" aria-hidden>
+        {isCall ? "📞" : open ? "▲" : "▼"}
+      </span>
+    </>
+  );
+
   return (
-    <li className="card alt">
-      <div className="option-head">
-        <span className="tile" aria-hidden>
-          {ROUTE_ICON[alt.rule.route] ?? "➜"}
-        </span>
-        <span className="option-title">
-          <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
-          <span className="block alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
-            {alt.when}
-          </span>
-        </span>
-      </div>
-      <div className="option-actions">
-        {alt.rule.route === "call_811" ? (
-          <a className="btn-outline" href="tel:811">
-            📞 {t.call811}
+    <li className={`card alt alt-${alt.rule.route}`}>
+      <div className="alt-head-row">
+        {isCall ? (
+          <a className="alt-head" href="tel:811" aria-label={`${t.call811}: ${alt.when}`}>
+            {head}
           </a>
         ) : alt.facility_kind ? (
-          <button className="btn-outline" onClick={toggle} aria-expanded={open}>
-            {busy ? "…" : open ? t.hidePlaces : t.showPlaces}
+          <button className="alt-head" onClick={toggle} aria-expanded={open}>
+            {head}
           </button>
         ) : (
-          <a className="btn-outline" href={alt.rule.source_url} target="_blank" rel="noreferrer">
-            {t.website} ↗
+          <a className="alt-head" href={alt.rule.source_url} target="_blank" rel="noreferrer">
+            {head}
           </a>
         )}
+        <SourceInfo t={t} sources={alt.rule.sources} />
       </div>
-      <a className="link-small" href={alt.rule.source_url} target="_blank" rel="noreferrer">
-        {t.source}: {alt.rule.sources[0]?.title ?? alt.rule.title} ↗
-      </a>
+      {open && busy && <p className="small muted">…</p>}
       {open && places && (
         <ul className="list nested">
           {places.location_needed && <p className="small muted">{t.shareLocationForOptions}</p>}
-          {places.facilities.map((f) => (
+          {places.facilities.slice(0, 3).map((f) => (
             <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
           ))}
         </ul>
@@ -1291,6 +1386,8 @@ function OpenBadge({ t, loc, tz, hours }: { t: Strings; loc: string; tz: string;
 
 function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Strings; loc: string; tz: string; f: Option; waitsSource?: RouteResult["er_waits_source"]; onChoose: () => void; onHelper: () => void }) {
   const virtual = f.kind === "virtual";
+  const [uberAsk, setUberAsk] = useState(false);
+  const sources = [{ title: f.source_title ?? f.source, url: f.source_url }, ...(f.booking ? [{ title: f.booking.source_title, url: f.booking.source_url }] : [])];
   return (
     <li className="card option">
       <div className="option-head">
@@ -1306,6 +1403,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
             {f.distance_km} {t.km}
           </span>
         )}
+        <SourceInfo t={t} sources={sources} />
       </div>
 
       {virtual ? (
@@ -1335,10 +1433,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
             <div className="wait-row">
               <span className="wait-big">{fmtWait(f.wait_minutes, t)}</span>
               <span className="muted small">
-                {t.estWait} ·{" "}
-                <a href={waitsSource.url} target="_blank" rel="noreferrer">
-                  {waitsSource.name}
-                </a>
+                {t.estWait} · {waitsSource.name}
               </span>
             </div>
           )}
@@ -1388,17 +1483,38 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
           </button>
         )}
       </div>
+      {!virtual && (
+        <div className="travel">
+          <a className="chip-link" href={transitUrl(f)} target="_blank" rel="noreferrer">
+            🚌 {t.transit}
+          </a>
+          <button className="chip-link" onClick={() => setUberAsk(!uberAsk)} aria-expanded={uberAsk}>
+            🚗 {t.ride}
+          </button>
+        </div>
+      )}
+      {uberAsk && (
+        <div className="confirm-box" role="dialog" aria-label={t.ride}>
+          <p className="small">
+            {t.rideConfirm} <strong>{f.name}</strong>
+            {fullAddress(f) ? ` – ${fullAddress(f)}` : ""}
+          </p>
+          <div className="row">
+            <a className="btn-outline" href={uberUrl(f)} target="_blank" rel="noreferrer" onClick={() => setUberAsk(false)}>
+              {t.openUber} ↗
+            </a>
+            <button className="btn-outline" onClick={() => setUberAsk(false)}>
+              {t.cancel}
+            </button>
+          </div>
+        </div>
+      )}
       {f.booking && (
         <div className="book-real">
           <a className="btn btn-book-real" href={f.booking.url} target="_blank" rel="noreferrer" onClick={onHelper}>
             📅 {t.bookOnline} ↗
           </a>
-          <p className="small muted">
-            {f.booking.note}{" "}
-            <a href={f.booking.source_url} target="_blank" rel="noreferrer">
-              {t.source}: {f.booking.source_title}
-            </a>
-          </p>
+          <p className="small muted">{f.booking.note}</p>
         </div>
       )}
       {!f.booking && f.phone && f.kind !== "virtual" && (
@@ -1406,9 +1522,6 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
           📝 {t.callHelper}
         </button>
       )}
-      <a className="link-small" href={f.source_url} target="_blank" rel="noreferrer">
-        {t.source}: {f.source_title ?? f.source} ↗
-      </a>
     </li>
   );
 }

@@ -15,6 +15,8 @@ export interface HouseholdMember {
   personaId?: string;
   /** Optional booking details. Stored only on this device (localStorage, with consent); never sent to the server. */
   contact?: BookingContact;
+  /** Usual free windows (keys of FREE_WINDOWS), for suggesting appointment times. Device only. */
+  freeTimes?: string[];
 }
 
 export interface BookingContact {

@@ -74,6 +74,16 @@ export const TOOLS: Tool[] = [
     description:
       "Finish by calling this exactly once with your recommendation. The server attaches the rule's official source link and the facility details.",
     parameters: obj({
+      guideline_match: {
+        type: "string",
+        enum: ["specific", "none"],
+        description:
+          "'specific' only if a rule returned by search_care_rules clearly covers this request. 'none' if you do not understand the symptoms, are not sure which route fits, or the guidelines do not mention it – then use the 811 rule and say there is no specific guideline.",
+      },
+      evidence: {
+        type: "string",
+        description: "Copy, word for word, the sentence or bullet from the chosen rule's text that supports this route (or from the 811 rule when guideline_match is 'none').",
+      },
       rule_id: { type: "string", description: "rule_id from search_care_rules for the main route." },
       reason: { type: "string", description: "ONE plain-language sentence, in the user's language, saying why this route fits. No diagnosis, no condition names." },
       message: { type: "string", description: "Up to 3 short sentences in the user's language: what to do next and what to bring. Grade 6 reading level." },

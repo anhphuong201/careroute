@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { runAgent, type AgentInput } from "./runAgent";
 import type { LlmClient, Turn } from "../llm/types";
+import { getRule } from "../tools/careRules";
+
+/** A real line from the rule, as the model would quote it. */
+const ev = (id: string) => {
+  const line = getRule(id.startsWith("ab") ? "AB" : "BC", id)!.body.split("\n").find((l) => /^- .{25,}/.test(l))!;
+  return line.slice(2).replace(/\*\*/g, "");
+};
 
 type Step = { name: string; input: Record<string, unknown> }[];
 
@@ -53,7 +60,7 @@ describe("runAgent – routing", () => {
       [{ name: "record_need", input: { detected_language: "ar", need_summary_en: "My thyroid medicine runs out in two days and I need a renewal.", need_type: "prescription_renewal", medication_mentioned: "" } }],
       [{ name: "search_care_rules", input: { need_type: "prescription_renewal", need_summary_en: "renewal" } }],
       [{ name: "find_facilities", input: { kind: "pharmacy", limit: 3 } }],
-      [{ name: "present_route", input: { rule_id: "ab-pharmacist", reason: "سبب", message: "رسالة", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "ab-registry" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: ev("ab-pharmacist"), rule_id: "ab-pharmacist", reason: "سبب", message: "رسالة", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "ab-registry" } }],
     ]);
     const r = await runAgent({ ...base, text: "دوائي سينفد بعد يومين" }, client);
     expect(r.type).toBe("route");
@@ -71,9 +78,9 @@ describe("runAgent – routing", () => {
   it("rejects a rule_id the model never retrieved, and accepts the corrected one", async () => {
     const { client, requests } = fake([
       [{ name: "record_need", input: { detected_language: "en", need_summary_en: "I want my lab results explained.", need_type: "lab_followup", medication_mentioned: "" } }],
-      [{ name: "present_route", input: { rule_id: "made-up", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: "x", rule_id: "made-up", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "" } }],
       [{ name: "search_care_rules", input: { need_type: "lab_followup", need_summary_en: "lab" } }],
-      [{ name: "present_route", input: { rule_id: "ab-virtual-care", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: ev("ab-virtual-care"), rule_id: "ab-virtual-care", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "" } }],
     ]);
     const r = await runAgent({ ...base, text: "can someone explain my blood test results" }, client);
     expect(r).toMatchObject({ type: "route", rule: { rule_id: "ab-virtual-care" } });
@@ -86,7 +93,7 @@ describe("runAgent – routing", () => {
       [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Need a renewal.", need_type: "prescription_renewal", medication_mentioned: "" } }],
       [{ name: "search_care_rules", input: { need_type: "prescription_renewal", need_summary_en: "renewal" } }],
       [{ name: "find_facilities", input: { kind: "pharmacy", limit: 5 } }],
-      [{ name: "present_route", input: { rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: ev("ab-pharmacist"), rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "" } }],
     ]);
     const r = await runAgent({ ...base, location: null, text: "need a refill" }, client);
     expect(r).toMatchObject({ type: "route", location_needed: true, facilities: [] });
@@ -96,7 +103,7 @@ describe("runAgent – routing", () => {
     const { client } = fake([
       [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Lab follow-up.", need_type: "lab_followup", medication_mentioned: "" } }],
       [{ name: "search_care_rules", input: { need_type: "lab_followup", need_summary_en: "lab" } }],
-      [{ name: "present_route", input: { rule_id: "ab-family-doctor", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "ab-registry" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: ev("ab-family-doctor"), rule_id: "ab-family-doctor", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "ab-registry" } }],
     ]);
     const r = await runAgent({ ...base, hasFamilyDoctor: "yes", text: "my doctor ordered tests" }, client);
     expect(r).toMatchObject({ type: "route", rule: { route: "family_doctor" } });
@@ -108,6 +115,7 @@ describe("runAgent – routing", () => {
       [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Constipation for two weeks.", need_type: "minor_symptom", medication_mentioned: "" } }],
       [{ name: "search_care_rules", input: { need_type: "minor_symptom", need_summary_en: "constipation" } }],
       [{ name: "present_route", input: {
+        guideline_match: "specific", evidence: ev("ab-pharmacist"),
         rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "",
         alternatives: [
           { rule_id: "ab-walk-in", when: "If you also have belly pain or blood in your stool, see a doctor today.", facility_kind: "walk_in" },
@@ -123,5 +131,39 @@ describe("runAgent – routing", () => {
     expect(r.alternatives.map((a) => a.rule.rule_id)).toEqual(["ab-walk-in"]);
     expect(r.alternatives[0].rule.source_url).toMatch(/^https:\/\//);
     expect(r.guide).toBeUndefined();
+  });
+
+  it("falls back to 811 when the model says no guideline covers it", async () => {
+    const { client } = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Strange tingling in my toes at night.", need_type: "minor_symptom", medication_mentioned: "" } }],
+      [{ name: "search_care_rules", input: { need_type: "minor_symptom", need_summary_en: "tingling toes" } }],
+      [{ name: "present_route", input: { guideline_match: "none", evidence: ev("ab-811"), rule_id: "ab-811", reason: "There is no specific guideline for this.", message: "Call 811 to talk to a nurse.", facility_kind: "none", facility_ids: [], registry_rule_id: "", alternatives: [{ rule_id: "ab-walk-in", when: "If …", facility_kind: "walk_in" }] } }],
+    ]);
+    const r = await runAgent({ ...base, text: "my toes tingle at night" }, client);
+    expect(r).toMatchObject({ type: "route", no_guideline: true, rule: { route: "call_811" }, alternatives: [], facilities: [] });
+    if (r.type === "route") expect(r.reason).toMatch(/no specific guideline/);
+  });
+
+  it("does not trust a route whose quote is not in the guideline", async () => {
+    const { client } = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Knee pain.", need_type: "minor_symptom", medication_mentioned: "" } }],
+      [{ name: "search_care_rules", input: { need_type: "minor_symptom", need_summary_en: "knee pain" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: "Pharmacists can fix every kind of knee pain with surgery.", rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "", alternatives: [] } }],
+    ]);
+    const r = await runAgent({ ...base, text: "knee pain" }, client);
+    expect(r).toMatchObject({ type: "route", no_guideline: true, rule: { route: "call_811" }, reason: "" });
+  });
+
+  it("never lists 'find a family doctor' as an alternative", async () => {
+    const { client } = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Need a refill.", need_type: "prescription_renewal", medication_mentioned: "" } }],
+      [{ name: "search_care_rules", input: { need_type: "prescription_renewal", need_summary_en: "refill" } }],
+      [{ name: "present_route", input: { guideline_match: "specific", evidence: ev("ab-pharmacist"), rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "none", facility_ids: [], registry_rule_id: "ab-registry",
+        alternatives: [{ rule_id: "ab-registry", when: "If you want a family doctor, register.", facility_kind: "none" }, { rule_id: "ab-walk-in", when: "If the pharmacist cannot renew it, go to a walk-in.", facility_kind: "walk_in" }] } }],
+    ]);
+    const r = await runAgent({ ...base, text: "refill please" }, client);
+    if (r.type !== "route") throw new Error("expected route");
+    expect(r.alternatives.map((a) => a.rule.route)).toEqual(["walk_in"]);
+    expect(r.no_guideline).toBe(false);
   });
 });

@@ -38,3 +38,22 @@ export const PROVINCES: Record<ProvinceCode, ProvinceConfig> = {
 };
 
 export const ENABLED_PROVINCES = Object.values(PROVINCES).filter((p) => p.enabled);
+
+/** Every province and territory, for the picker. Only codes in PROVINCES are selectable today. */
+export const ALL_REGIONS: { code: string; name: string; nameFr: string }[] = [
+  { code: "AB", name: "Alberta", nameFr: "Alberta" },
+  { code: "BC", name: "British Columbia", nameFr: "Colombie-Britannique" },
+  { code: "MB", name: "Manitoba", nameFr: "Manitoba" },
+  { code: "NB", name: "New Brunswick", nameFr: "Nouveau-Brunswick" },
+  { code: "NL", name: "Newfoundland and Labrador", nameFr: "Terre-Neuve-et-Labrador" },
+  { code: "NS", name: "Nova Scotia", nameFr: "Nouvelle-Écosse" },
+  { code: "ON", name: "Ontario", nameFr: "Ontario" },
+  { code: "PE", name: "Prince Edward Island", nameFr: "Île-du-Prince-Édouard" },
+  { code: "QC", name: "Quebec", nameFr: "Québec" },
+  { code: "SK", name: "Saskatchewan", nameFr: "Saskatchewan" },
+  { code: "NT", name: "Northwest Territories", nameFr: "Territoires du Nord-Ouest" },
+  { code: "NU", name: "Nunavut", nameFr: "Nunavut" },
+  { code: "YT", name: "Yukon", nameFr: "Yukon" },
+];
+
+export const isEnabledProvince = (code: string): code is ProvinceCode => code in PROVINCES && PROVINCES[code as ProvinceCode].enabled;

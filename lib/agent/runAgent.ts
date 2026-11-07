@@ -12,6 +12,7 @@ import { getRule, searchCareRules, type NeedType } from "../tools/careRules";
 import { checkErWaits, findFacilities, type Facility, type FacilityKind } from "../tools/facilities";
 import { lookupMedication } from "../tools/medication";
 import { symptomGuide } from "../tools/symptomGuide";
+import { evidenceSupported } from "./evidence";
 import { TOOLS } from "../tools/definitions";
 import { SYSTEM_PROMPT, userTurn } from "./prompt";
 import { defaultLlm } from "../llm";
@@ -58,6 +59,10 @@ export type AgentResult =
       guide?: { title: string; url: string };
       /** English reason-for-visit text for booking forms / phone calls. */
       booking_note: string;
+      /** true when no guideline clearly covers the request: route is forced to 811, show the "no specific guideline" message. */
+      no_guideline: boolean;
+      /** Supporting text from the guideline (verified against the rule). */
+      evidence?: string;
       location_needed: boolean;
     }
   | { type: "error"; message: string };
@@ -198,6 +203,36 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
         case "ask_clarifying_question":
           return { type: "clarify", question: String(args.question || ""), language: need?.language ?? "en" };
         case "present_route": {
+          // ── Grounding gate: route must be backed by a quote from the rule; otherwise 811.
+          const nurse = toSourced(input.province, `${province.dir}-811`)!;
+          const claimed = getRule(input.province, String(args.rule_id || ""));
+          const evidence = String(args.evidence || "");
+          if (String(args.guideline_match) !== "none" && (!claimed || !seenRuleIds.has(claimed.id))) {
+            results.push(fail("rule_id must be one returned by search_care_rules in this conversation."));
+            break;
+          }
+          const grounded =
+            String(args.guideline_match) === "specific" && !!claimed && seenRuleIds.has(claimed.id) && evidenceSupported(evidence, claimed.body);
+          if (!grounded) {
+            const modelSaidNone = String(args.guideline_match) === "none";
+            return {
+              type: "route",
+              language: need?.language ?? "en",
+              need_type: need?.type ?? "other",
+              need_summary_en: need?.summary ?? "",
+              rule: nurse,
+              // Keep the model's own words only when it chose "none" itself (they are in the user's language).
+              reason: modelSaidNone ? String(args.reason || "") : "",
+              message: modelSaidNone ? String(args.message || "") : "",
+              facility_kind: null,
+              facilities: [],
+              registry: input.hasFamilyDoctor !== "yes" ? toSourced(input.province, `${province.dir}-registry`) : undefined,
+              alternatives: [],
+              booking_note: (String(args.booking_note_en || "") || need?.summary || "").slice(0, 300),
+              no_guideline: true,
+              location_needed: false,
+            };
+          }
           const rule = toSourced(input.province, String(args.rule_id || ""));
           if (!rule || !seenRuleIds.has(rule.rule_id)) {
             results.push(fail("rule_id must be one returned by search_care_rules in this conversation."));
@@ -217,7 +252,10 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           const KINDS = ["pharmacy", "walk_in", "urgent_care", "virtual"];
           const alternatives = (Array.isArray(args.alternatives) ? (args.alternatives as Record<string, unknown>[]) : [])
             .map((a) => ({ rule: toSourced(input.province, String(a.rule_id || "")), when: String(a.when || ""), k: String(a.facility_kind || "none") }))
-            .filter((a): a is { rule: SourcedRule; when: string; k: string } => !!a.rule && seenRuleIds.has(a.rule.rule_id) && a.rule.rule_id !== rule.rule_id && !!a.when)
+            .filter(
+              (a): a is { rule: SourcedRule; when: string; k: string } =>
+                !!a.rule && seenRuleIds.has(a.rule.rule_id) && a.rule.rule_id !== rule.rule_id && a.rule.route !== "registry" && !!a.when,
+            )
             .slice(0, 3)
             .map((a) => ({ rule: a.rule, when: a.when, facility_kind: (KINDS.includes(a.k) ? a.k : null) as FacilityKind | null }));
           const guideUrl = String(args.guide_url || "");
@@ -236,6 +274,8 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             alternatives,
             guide: guides.has(guideUrl) ? { title: guides.get(guideUrl)!, url: guideUrl } : undefined,
             booking_note: (String(args.booking_note_en || "") || need?.summary || "").slice(0, 300),
+            no_guideline: false,
+            evidence: evidence.slice(0, 400),
             location_needed: locationNeeded && facilities.length === 0,
           };
         }

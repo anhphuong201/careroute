@@ -9,6 +9,7 @@ import { useState } from "react";
 import type { Strings } from "@/lib/i18n";
 import type { HouseholdMember } from "@/lib/types";
 import { callScript, hasContact, maskCard } from "@/lib/client/bookingHelper";
+import { suggestSlots } from "@/lib/client/suggest";
 
 export interface HelperPlace {
   id: string;
@@ -16,8 +17,15 @@ export interface HelperPlace {
   address: string;
   city: string;
   phone: string;
+  hours?: string;
   booking?: { url: string; label: string };
 }
+
+/** "2026-11-09T17:30" for <input type="datetime-local"> in local time. */
+const toLocalInput = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -86,6 +94,8 @@ export default function BookingHelper(props: {
   const viaPhone = !place.booking;
   const address = [place.address, place.city].filter(Boolean).join(", ");
   const name = c.legalName || member.displayName;
+  const locale = props.lang === "fr" ? "fr-CA" : "en-CA";
+  const suggestions = suggestSlots(place.hours ?? "", member.freeTimes ?? []);
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="helper-title">
@@ -110,6 +120,27 @@ export default function BookingHelper(props: {
             </a>
           )}
         </div>
+
+        <h3>🗓 {t.suggestedTimes}</h3>
+        {suggestions.length > 0 ? (
+          <>
+            <p className="small muted">{t.suggestedHelp}</p>
+            <div className="chips">
+              {suggestions.map((d) => {
+                const v = toLocalInput(d);
+                return (
+                  <button key={v} className={`chip ${when === v ? "on" : ""}`} aria-pressed={when === v} onClick={() => setWhen(v)}>
+                    {d.toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <button className="link-btn" onClick={props.onAddDetails}>
+            {t.setFreeTimes}
+          </button>
+        )}
 
         <h3>{t.pickStore}</h3>
         <CopyRow t={t} label={place.name} value={`${place.name}${address ? `, ${address}` : ""}`} />
