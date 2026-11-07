@@ -11,6 +11,7 @@ import type { RedFlagAction, RedFlagCategory } from "@/lib/safety/redFlags";
 import type { Booking } from "@/lib/tools/booking";
 import { fmtMinute, fmtWeekday, openStatus, parseHours, weekLines } from "@/lib/data/hours";
 import BookingHelper from "@/components/BookingHelper";
+import SmartBook, { type DemoBooked } from "@/components/SmartBook";
 import { icsFor } from "@/lib/client/bookingHelper";
 import { FREE_WINDOWS, googleCalendarUrl } from "@/lib/client/suggest";
 
@@ -144,6 +145,8 @@ export default function CareRouteApp() {
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<Option | null>(null);
   const [helperFor, setHelperFor] = useState<Option | null>(null);
+  const [smartOpen, setSmartOpen] = useState(false);
+  const [gcalLink, setGcalLink] = useState<string | null>(null);
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -299,12 +302,32 @@ export default function CareRouteApp() {
       instructions: f.kind === "pharmacy" ? "Bring your health card and your medicine bottle or list." : "Bring your health card, your medicine list and your CareRoute summary.",
     };
     setBooking(real);
+    setGcalLink(null);
     if (result)
       record({
         route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url,
         bookingCode: b.code || undefined, bookingPlace: f.name, bookingTime: real.slot, bookingReal: true,
       });
     setHelperFor(null);
+    setScreen("booked");
+  }
+
+  function saveDemoBooking(d: DemoBooked) {
+    const b: Booking = {
+      simulated: true, // demo provider, not a real pharmacy
+      confirmation_code: d.uid,
+      facility_id: "demo-clinic",
+      facility_name: `${d.clinicName} (DEMO)`,
+      facility_address: "Demo clinic (prototype)",
+      for_member: member.displayName || t.me,
+      slot: d.start,
+      instructions: "Demo booking made through the clinic's booking system. Bring your health card and medicine list.",
+    };
+    setBooking(b);
+    setGcalLink(d.calendarLink === undefined ? null : d.calendarLink ?? "");
+    if (result)
+      record({ route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url, bookingCode: d.uid, bookingPlace: b.facility_name, bookingTime: d.start });
+    setSmartOpen(false);
     setScreen("booked");
   }
 
@@ -624,6 +647,7 @@ export default function CareRouteApp() {
                 setScreen("book");
               }}
               onHelper={setHelperFor}
+              onSmart={() => setSmartOpen(true)}
               onNeedLocation={() => setScreen("need")}
             />
           )}
@@ -650,6 +674,19 @@ export default function CareRouteApp() {
                 <p>
                   <strong>{t.bring}:</strong> {booking.instructions}
                 </p>
+                {gcalLink !== null && (
+                  <p className="saved-gcal">
+                    ✅ {t.savedToGcal}
+                    {gcalLink ? (
+                      <>
+                        {" "}
+                        <a href={gcalLink} target="_blank" rel="noreferrer">
+                          ↗
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
+                )}
                 <button className="btn btn-soft" onClick={() => downloadCalendar(booking)}>
                   📆 {t.addToCalendar}
                 </button>
@@ -786,7 +823,24 @@ export default function CareRouteApp() {
         />
       )}
 
-      {showNav && !helperFor && (
+      {smartOpen && result && (
+        <SmartBook
+          t={t}
+          lang={lang}
+          tz={TZ[province]}
+          member={member}
+          reason={result.booking_note}
+          onClose={() => setSmartOpen(false)}
+          onBooked={saveDemoBooking}
+          onAddDetails={() => {
+            setSmartOpen(false);
+            setEditMemberId(member.id);
+            setScreen("household");
+          }}
+        />
+      )}
+
+      {showNav && !helperFor && !smartOpen && (
         <nav className="bottom-nav" aria-label="Main">
           <NavBtn icon="🏠" label={t.navHome} on={screen === "home"} onClick={() => setScreen("home")} />
           <NavBtn icon="🕘" label={t.navHistory} on={screen === "history"} onClick={() => setScreen("history")} />
@@ -1181,6 +1235,7 @@ function Result(props: {
   result: RouteResult;
   onChoose: (o: Option) => void;
   onHelper: (o: Option) => void;
+  onSmart: () => void;
   onNeedLocation: () => void;
 }) {
   const { t, loc, result: r, province } = props;
@@ -1224,6 +1279,20 @@ function Result(props: {
         )}
         {action}
       </div>
+
+      {!r.no_guideline && ["pharmacist", "walk_in", "virtual_care"].includes(r.rule.route) && (
+        <button className="card smart-card" onClick={props.onSmart}>
+          <span className="tile" aria-hidden>
+            ⚡
+          </span>
+          <span className="option-title">
+            <strong>
+              {t.tryOneTap} <span className="badge">DEMO</span>
+            </strong>
+            <span className="small muted block">{t.tryOneTapHelp}</span>
+          </span>
+        </button>
+      )}
 
       {r.alternatives.length > 0 && (
         <>

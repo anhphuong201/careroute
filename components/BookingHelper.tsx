@@ -5,11 +5,12 @@
  * shows everything needed to fill it in – store, reason, and the person's saved details –
  * with copy buttons. Nothing here is sent to CareRoute's server.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import * as gcal from "@/lib/client/googleCalendar";
 import type { Strings } from "@/lib/i18n";
 import type { HouseholdMember } from "@/lib/types";
 import { callScript, hasContact, maskCard } from "@/lib/client/bookingHelper";
-import { suggestSlots } from "@/lib/client/suggest";
+import { FREE_WINDOWS, suggestSlots } from "@/lib/client/suggest";
 
 export interface HelperPlace {
   id: string;
@@ -95,7 +96,17 @@ export default function BookingHelper(props: {
   const address = [place.address, place.city].filter(Boolean).join(", ");
   const name = c.legalName || member.displayName;
   const locale = props.lang === "fr" ? "fr-CA" : "en-CA";
-  const suggestions = suggestSlots(place.hours ?? "", member.freeTimes ?? []);
+  const [busy, setBusy] = useState<gcal.Busy[]>([]);
+  const [connected, setConnected] = useState(gcal.isConnected());
+  useEffect(() => gcal.onChange(() => setConnected(gcal.isConnected())), []);
+  useEffect(() => {
+    if (!connected) return setBusy([]);
+    const now = new Date();
+    gcal.getBusy(now, new Date(now.getTime() + 8 * 86400000)).then(setBusy).catch(() => setBusy([]));
+  }, [connected]);
+  // Your free windows (or any daytime window when only the calendar is connected) ∩ opening hours − busy times.
+  const keys = member.freeTimes?.length ? member.freeTimes : connected ? Object.keys(FREE_WINDOWS) : [];
+  const suggestions = gcal.freeOf(suggestSlots(place.hours ?? "", keys, new Date(), 10), busy).slice(0, 3);
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="helper-title">
@@ -139,6 +150,11 @@ export default function BookingHelper(props: {
         ) : (
           <button className="link-btn" onClick={props.onAddDetails}>
             {t.setFreeTimes}
+          </button>
+        )}
+        {gcal.isConfigured() && !connected && (
+          <button className="link-btn" onClick={() => gcal.connect()}>
+            🔗 {t.connectGcal}
           </button>
         )}
 

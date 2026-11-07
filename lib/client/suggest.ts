@@ -56,3 +56,24 @@ export function googleCalendarUrl(opts: { title: string; start: Date; minutes?: 
   const q = new URLSearchParams({ action: "TEMPLATE", text: opts.title, dates: `${fmt(opts.start)}/${fmt(end)}`, location: opts.location, details: opts.details });
   return `https://calendar.google.com/calendar/render?${q.toString()}`;
 }
+
+/** Pick up to `count` suggestions from open slots: prefer the person's free windows, one per day, earliest first. */
+export function pickSuggestions(slots: Date[], freeKeys: string[], count = 3): Date[] {
+  const inWindow = (d: Date) => {
+    const dow = (d.getDay() + 6) % 7;
+    const min = d.getHours() * 60 + d.getMinutes();
+    return freeKeys.some((k) => {
+      const w = FREE_WINDOWS[k];
+      return w && w.weekend === dow >= 5 && min >= w.from && min < w.to;
+    });
+  };
+  const preferred = freeKeys.length ? slots.filter(inWindow) : slots;
+  const pool = preferred.length ? preferred : slots;
+  const out: Date[] = [];
+  for (const s of pool) {
+    if (out.some((x) => x.toDateString() === s.toDateString())) continue;
+    out.push(s);
+    if (out.length >= count) break;
+  }
+  return out;
+}
