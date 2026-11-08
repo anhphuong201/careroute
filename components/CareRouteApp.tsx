@@ -12,8 +12,10 @@ import type { Booking } from "@/lib/tools/booking";
 import { fmtMinute, fmtWeekday, openStatus, parseHours, weekLines } from "@/lib/data/hours";
 import BookingHelper from "@/components/BookingHelper";
 import SmartBook, { type DemoBooked } from "@/components/SmartBook";
+import { DEMO_CLINIC_DISPLAY } from "@/lib/demoClinicConfig";
 import { icsFor } from "@/lib/client/bookingHelper";
 import { FREE_WINDOWS, googleCalendarUrl } from "@/lib/client/suggest";
+import { tzLabel, zonedDate, zonedParts } from "@/lib/data/tz";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -101,21 +103,18 @@ const DEMO: Record<ProvinceCode, HouseholdMember[]> = {
   BC: [{ id: "m-jun", displayName: "Jun", ageGroup: "adult", hasFamilyDoctor: "no", personaId: "jun-chen", birthDate: "2001-07-30" }],
 };
 
-/** Next 7 days; time slots every 30 min, 8:00–19:30, at least 1 h from now. */
-function days(n = 7) {
-  const out: Date[] = [];
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  for (let i = 0; i < n; i++) out.push(new Date(d.getTime() + i * 86400000));
-  return out;
+/** Next 7 days (noon of each day in the province's zone); slots every 30 min, 8:00–19:30, ≥ 1 h from now. */
+function days(tz: string, n = 7) {
+  const p = zonedParts(new Date(), tz);
+  return Array.from({ length: n }, (_, i) => zonedDate(p.year, p.month, p.day + i, 12, 0, tz));
 }
-function slots(day: Date) {
+function slots(day: Date, tz: string) {
   const out: Date[] = [];
   const min = Date.now() + 3600000;
+  const p = zonedParts(day, tz);
   for (let h = 8; h < 20; h++)
     for (const m of [0, 30]) {
-      const s = new Date(day);
-      s.setHours(h, m, 0, 0);
+      const s = zonedDate(p.year, p.month, p.day, h, m, tz);
       if (s.getTime() > min) out.push(s);
     }
   return out;
@@ -185,7 +184,7 @@ export default function CareRouteApp() {
   const member: HouseholdMember = members.find((m) => m.id === memberId) ?? guest;
   // Set after mount: the page is pre-rendered, so the server's clock must not decide the greeting.
   const [hour, setHour] = useState<number | null>(null);
-  useEffect(() => setHour(new Date().getHours()), []);
+  useEffect(() => setHour(new Date().getHours()), []); // greeting follows the person's own clock
   const greeting = hour === null ? t.hello : hour < 12 ? t.goodMorning : hour < 18 ? t.goodAfternoon : t.goodEvening;
 
   function saveHousehold(h: Household) {
@@ -317,8 +316,8 @@ export default function CareRouteApp() {
       simulated: true, // demo provider, not a real pharmacy
       confirmation_code: d.uid,
       facility_id: "demo-clinic",
-      facility_name: `${d.clinicName} (DEMO)`,
-      facility_address: "Demo clinic (prototype)",
+      facility_name: DEMO_CLINIC_DISPLAY.badge ? `${d.clinicName} (DEMO)` : d.clinicName,
+      facility_address: DEMO_CLINIC_DISPLAY.address,
       for_member: member.displayName || t.me,
       slot: d.start,
       instructions: "Demo booking made through the clinic's booking system. Bring your health card and medicine list.",
@@ -671,7 +670,7 @@ export default function CareRouteApp() {
           )}
 
           {screen === "book" && chosen && result && (
-            <BookScreen t={t} loc={loc} option={chosen} waitsSource={result.er_waits_source} onBack={() => setScreen("result")} onConfirm={confirmBooking} />
+            <BookScreen t={t} loc={loc} tz={TZ[province]} option={chosen} waitsSource={result.er_waits_source} onBack={() => setScreen("result")} onConfirm={confirmBooking} />
           )}
 
           {screen === "booked" && booking && (
@@ -685,8 +684,8 @@ export default function CareRouteApp() {
                   <span className="muted">{booking.facility_address}</span>
                 </p>
                 <div className="stats">
-                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })} label={t.selectDate} />
-                  <Stat icon="🕒" value={new Date(booking.slot).toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" })} label={t.time} />
+                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { timeZone: TZ[province], weekday: "short", month: "short", day: "numeric" })} label={t.selectDate} />
+                  <Stat icon="🕒" value={`${new Date(booking.slot).toLocaleTimeString(loc, { timeZone: TZ[province], hour: "numeric", minute: "2-digit" })} ${tzLabel(TZ[province], loc, new Date(booking.slot))}`} label={t.time} />
                   {booking.confirmation_code && <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />}
                 </div>
                 <p>
@@ -745,7 +744,7 @@ export default function CareRouteApp() {
                       <div>
                         <strong>{h.route === "emergency" ? "911 / 988 / 811" : t.routeNames[h.route] ?? h.route}</strong>
                         <div className="muted small">
-                          {new Date(h.createdAt).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" })} · {h.province}
+                          {new Date(h.createdAt).toLocaleString(loc, { timeZone: TZ[h.province] ?? undefined, dateStyle: "medium", timeStyle: "short" })} · {h.province}
                           {who ? ` · ${who}` : ""}
                         </div>
                         {h.route !== "emergency" && <p className="small">{h.reason}</p>}
@@ -758,7 +757,7 @@ export default function CareRouteApp() {
                           {h.bookingReal ? (
                             <span className="badge badge-real">
                               {t.realBooking} · {h.bookingPlace}
-                              {h.bookingTime ? ` · ${new Date(h.bookingTime).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                              {h.bookingTime ? ` · ${new Date(h.bookingTime).toLocaleString(loc, { timeZone: TZ[h.province] ?? undefined, dateStyle: "medium", timeStyle: "short" })}` : ""}
                             </span>
                           ) : (
                             h.bookingCode && <span className="badge">{t.simulated} · {h.bookingCode}</span>
@@ -828,6 +827,7 @@ export default function CareRouteApp() {
         <BookingHelper
           t={t}
           lang={lang}
+          tz={TZ[province]}
           place={helperFor}
           member={member}
           reason={result.booking_note}
@@ -1298,20 +1298,6 @@ function Result(props: {
         {action}
       </div>
 
-      {!r.no_guideline && ["pharmacist", "walk_in", "virtual_care"].includes(r.rule.route) && (
-        <button className="card smart-card" onClick={props.onSmart}>
-          <span className="tile" aria-hidden>
-            ⚡
-          </span>
-          <span className="option-title">
-            <strong>
-              {t.tryOneTap} <span className="badge">DEMO</span>
-            </strong>
-            <span className="small muted block">{t.tryOneTapHelp}</span>
-          </span>
-        </button>
-      )}
-
       {r.alternatives.length > 0 && (
         <>
           <SectionHead title={t.otherOptions} />
@@ -1335,6 +1321,9 @@ function Result(props: {
             </div>
           )}
           <ul className="list">
+            {DEMO_CLINIC_DISPLAY.enabled && r.facility_kind !== "virtual" && !r.location_needed && (
+              <DemoPlaceCard t={t} loc={loc} tz={tz} kind={r.facility_kind} onBook={props.onSmart} />
+            )}
             {visible.map((f) => (
               <OptionCard key={f.id} t={t} loc={loc} tz={tz} f={f} waitsSource={r.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
             ))}
@@ -1435,6 +1424,32 @@ function Alternative(props: {
           ))}
         </ul>
       )}
+    </li>
+  );
+}
+
+/** The DEMO clinic shown as the first nearby place: same look as a real place card. */
+function DemoPlaceCard({ t, loc, tz, kind, onBook }: { t: Strings; loc: string; tz: string; kind: string; onBook: () => void }) {
+  const d = DEMO_CLINIC_DISPLAY;
+  return (
+    <li className="card option demo-place">
+      <div className="option-head">
+        <span className="tile" aria-hidden>
+          {KIND_ICON[kind] ?? "💊"}
+        </span>
+        <span className="option-title">
+          <strong>
+            {d.name} {d.badge && <span className="badge">DEMO</span>}
+          </strong>
+          <span className="muted small block">{t.kindNames[kind] ?? kind}</span>
+        </span>
+      </div>
+      <p className="muted small">{d.address}</p>
+      <OpenBadge t={t} loc={loc} tz={tz} hours={d.hours} />
+      <p className="small">⚡ {t.demoPlaceNote}</p>
+      <button className="btn btn-book-real" onClick={onBook}>
+        ⚡ {t.bookWithCalendar}
+      </button>
     </li>
   );
 }
@@ -1613,13 +1628,14 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
   );
 }
 
-function BookScreen(props: { t: Strings; loc: string; option: Option; waitsSource?: RouteResult["er_waits_source"]; onBack: () => void; onConfirm: (slot: Date) => void }) {
+function BookScreen(props: { t: Strings; loc: string; tz: string; option: Option; waitsSource?: RouteResult["er_waits_source"]; onBack: () => void; onConfirm: (slot: Date) => void }) {
   const { t, loc, option: f } = props;
-  const dayList = useMemo(() => days(7), []);
+  const tz = props.tz;
+  const dayList = useMemo(() => days(tz, 7), [tz]);
   // Open on the first day that still has free times (late in the evening, today has none).
-  const [day, setDay] = useState(() => Math.max(0, dayList.findIndex((d) => slots(d).length > 0)));
+  const [day, setDay] = useState(() => Math.max(0, dayList.findIndex((d) => slots(d, tz).length > 0)));
   const [slot, setSlot] = useState<Date | null>(null);
-  const times = useMemo(() => slots(dayList[day]), [dayList, day]);
+  const times = useMemo(() => slots(dayList[day], tz), [dayList, day, tz]);
   const virtual = f.kind === "virtual";
 
   return (
@@ -1652,13 +1668,15 @@ function BookScreen(props: { t: Strings; loc: string; option: Option; waitsSourc
 
       <div className="section-head">
         <h2>{t.selectDate}</h2>
-        <span className="muted small">{dayList[day].toLocaleDateString(loc, { month: "long" })}</span>
+        <span className="muted small">
+          {dayList[day].toLocaleDateString(loc, { timeZone: tz, month: "long" })} · 🕒 {tzLabel(tz, loc)}
+        </span>
       </div>
       <div className="date-scroll" role="radiogroup" aria-label={t.selectDate}>
         {dayList.map((d, i) => (
-          <button key={i} role="radio" disabled={slots(d).length === 0} aria-checked={day === i} className={`date ${day === i ? "on" : ""}`} onClick={() => { setDay(i); setSlot(null); }}>
-            <span className="date-num">{d.getDate()}</span>
-            <span className="date-day">{i === 0 ? t.today : d.toLocaleDateString(loc, { weekday: "short" })}</span>
+          <button key={i} role="radio" disabled={slots(d, tz).length === 0} aria-checked={day === i} className={`date ${day === i ? "on" : ""}`} onClick={() => { setDay(i); setSlot(null); }}>
+            <span className="date-num">{zonedParts(d, tz).day}</span>
+            <span className="date-day">{i === 0 ? t.today : d.toLocaleDateString(loc, { timeZone: tz, weekday: "short" })}</span>
           </button>
         ))}
       </div>
@@ -1670,7 +1688,7 @@ function BookScreen(props: { t: Strings; loc: string; option: Option; waitsSourc
         {times.length === 0 && <p className="muted">—</p>}
         {times.map((s) => (
           <button key={s.toISOString()} role="radio" aria-checked={slot?.getTime() === s.getTime()} className={`time ${slot?.getTime() === s.getTime() ? "on" : ""}`} onClick={() => setSlot(s)}>
-            {s.toLocaleTimeString(loc, { hour: "numeric", minute: "2-digit" })}
+            {s.toLocaleTimeString(loc, { timeZone: tz, hour: "numeric", minute: "2-digit" })}
           </button>
         ))}
       </div>

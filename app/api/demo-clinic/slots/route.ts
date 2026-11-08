@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const slots =
       mode === "calcom"
         ? await fetchSlots(start.toISOString(), end.toISOString(), tz)
-        : offlineSlots(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())), days, tz === "America/Vancouver" ? 480 : 420);
+        : offlineSlots(start, days, tz);
     return NextResponse.json({ clinic: DEMO_CLINIC, mode, slots });
   } catch (e) {
     console.error("demo slots", e instanceof Error ? e.message : e);

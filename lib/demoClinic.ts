@@ -8,10 +8,12 @@
  *       https://cal.com/docs/api-reference/v2/bookings/create-a-booking
  */
 const API = "https://api.cal.com/v2";
+import { zonedDate, zonedParts } from "./data/tz";
+import { DEMO_CLINIC_DISPLAY } from "./demoClinicConfig";
 
 export const DEMO_CLINIC = {
   id: "demo-clinic",
-  name: "CareRoute Demo Pharmacy",
+  name: DEMO_CLINIC_DISPLAY.name,
   note: "DEMO provider for the prototype – not a real pharmacy.",
 };
 
@@ -21,19 +23,20 @@ export function demoMode(env: Record<string, string | undefined> = process.env):
   return env.CALCOM_API_KEY && env.CALCOM_EVENT_TYPE_ID ? "calcom" : "offline";
 }
 
-/** Offline demo: weekdays 9:00–17:00 and Saturday 10:00–14:00 local, 30-minute slots, some already "taken". */
-export function offlineSlots(from: Date, days: number, timeZoneOffsetMin = 0): string[] {
+/** Offline demo: weekdays 9:00–17:00 and Saturday 10:00–14:00 in the clinic's time zone, 30-minute slots, some already "taken". */
+export function offlineSlots(from: Date, days: number, timeZone: string, now = Date.now()): string[] {
   const out: string[] = [];
+  const p0 = zonedParts(from, timeZone);
   for (let i = 0; i < days; i++) {
-    const d = new Date(from.getTime() + i * 86400000);
-    const dow = d.getUTCDay();
-    const open = dow === 0 ? null : dow === 6 ? [10, 14] : [9, 17];
+    const noon = zonedDate(p0.year, p0.month, p0.day + i, 12, 0, timeZone);
+    const p = zonedParts(noon, timeZone);
+    const open = p.dow === 6 ? null : p.dow === 5 ? [10, 14] : [9, 17];
     if (!open) continue;
     for (let h = open[0]; h < open[1]; h++)
       for (const m of [0, 30]) {
         if ((h * 2 + m / 30 + i) % 3 === 0) continue; // pretend a third are booked
-        const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m) + timeZoneOffsetMin * 60000;
-        if (t > Date.now() + 3600000) out.push(new Date(t).toISOString());
+        const t = zonedDate(p.year, p.month, p.day, h, m, timeZone);
+        if (t.getTime() > now + 3600000) out.push(t.toISOString());
       }
   }
   return out;

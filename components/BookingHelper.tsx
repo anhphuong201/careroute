@@ -11,6 +11,7 @@ import type { Strings } from "@/lib/i18n";
 import type { HouseholdMember } from "@/lib/types";
 import { callScript, hasContact, maskCard } from "@/lib/client/bookingHelper";
 import { FREE_WINDOWS, suggestSlots } from "@/lib/client/suggest";
+import { fromZonedInput, toZonedInput, tzLabel } from "@/lib/data/tz";
 
 export interface HelperPlace {
   id: string;
@@ -22,11 +23,7 @@ export interface HelperPlace {
   booking?: { url: string; label: string };
 }
 
-/** "2026-11-09T17:30" for <input type="datetime-local"> in local time. */
-const toLocalInput = (d: Date) => {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -81,6 +78,8 @@ function CopyRow({ t, label, value, display, secret }: { t: Strings; label: stri
 export default function BookingHelper(props: {
   t: Strings;
   lang: "en" | "fr";
+  /** Province time zone – all times are shown and entered in it. */
+  tz: string;
   place: HelperPlace;
   member: HouseholdMember;
   reason: string;
@@ -109,7 +108,7 @@ export default function BookingHelper(props: {
   }, [connected]);
   // Your free windows (or any daytime window when only the calendar is connected) ∩ opening hours − busy times.
   const keys = member.freeTimes?.length ? member.freeTimes : connected ? Object.keys(FREE_WINDOWS) : [];
-  const suggestions = gcal.freeOf(suggestSlots(place.hours ?? "", keys, new Date(), 10), busy).slice(0, 3);
+  const suggestions = gcal.freeOf(suggestSlots(place.hours ?? "", keys, new Date(), 10, props.tz), busy).slice(0, 3);
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="helper-title">
@@ -135,16 +134,18 @@ export default function BookingHelper(props: {
           )}
         </div>
 
-        <h3>🗓 {t.suggestedTimes}</h3>
+        <h3>
+          🗓 {t.suggestedTimes} <span className="tz-chip">🕒 {t.timesIn} {tzLabel(props.tz, locale)}</span>
+        </h3>
         {suggestions.length > 0 ? (
           <>
             <p className="small muted">{t.suggestedHelp}</p>
             <div className="chips">
               {suggestions.map((d) => {
-                const v = toLocalInput(d);
+                const v = toZonedInput(d, props.tz);
                 return (
                   <button key={v} className={`chip ${when === v ? "on" : ""}`} aria-pressed={when === v} onClick={() => setWhen(v)}>
-                    {d.toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {d.toLocaleString(locale, { timeZone: props.tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                   </button>
                 );
               })}
@@ -195,14 +196,17 @@ export default function BookingHelper(props: {
         <div className="card helper-done">
           <h3>✅ {t.iBooked}</h3>
           <label className="label" htmlFor="booked-when">
-            {t.bookedWhen}
+            {t.bookedWhen} ({tzLabel(props.tz, locale)})
           </label>
           <input id="booked-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
           <label className="label" htmlFor="booked-code">
             {t.confirmationOptional}
           </label>
           <input id="booked-code" value={code} maxLength={40} onChange={(e) => setCode(e.target.value)} />
-          <button className="btn" disabled={!when} onClick={() => props.onSaved({ when: new Date(when), code: code.trim() })}>
+          <button className="btn" disabled={!when} onClick={() => {
+              const at = fromZonedInput(when, props.tz);
+              if (at) props.onSaved({ when: at, code: code.trim() });
+            }}>
             {t.saveBooking}
           </button>
         </div>

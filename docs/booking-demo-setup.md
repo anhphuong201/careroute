@@ -25,3 +25,20 @@ Without any setup the demo still runs in *offline* mode with made-up times and n
 ## Privacy
 - Google access token stays in the browser tab; CareRoute only reads free/busy (no event details) and adds the one appointment you approve.
 - Booking details (name, email, phone, reason) go from the browser through `/api/demo-clinic/book` straight to Cal.com and are not stored or logged by CareRoute.
+
+## 3. Make the demo clinic look like your presentation pharmacy (optional)
+The demo clinic is shown as the **first place in "Nearby options"**, styled like a real place card.
+Set these in Vercel (then redeploy):
+
+| Variable | Example | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_DEMO_CLINIC_NAME` | `Shoppers Drug Mart – Kensington (demo)` | Keep "(demo)" in the name if the DEMO tag is off |
+| `NEXT_PUBLIC_DEMO_CLINIC_ADDRESS` | `Demo location` | Shown under the name; no distance is shown for the demo |
+| `NEXT_PUBLIC_DEMO_CLINIC_HOURS` | `Mo-Fr 09:00-17:00; Sa 10:00-14:00; Su off` | Match your Cal.com availability |
+| `NEXT_PUBLIC_DEMO_BADGE` | `off` | Hides the purple DEMO tag – presentations only |
+| `NEXT_PUBLIC_DEMO_CLINIC` | `off` | Hides the demo clinic entirely (e.g. for real users) |
+
+## Time zones
+All times are shown in the province's zone (Alberta → America/Edmonton, B.C. → America/Vancouver), whatever the device's clock is set to.
+Set your Cal.com availability in the same zone (Edmonton for Alberta). Note: tzdata 2026 has Alberta and B.C. on permanent
+daylight time; devices with older time-zone data may still show "MST" – the app always follows the device's own time-zone data.

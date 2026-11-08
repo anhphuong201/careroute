@@ -7,13 +7,13 @@ describe("demo clinic", () => {
     expect(demoMode({ CALCOM_API_KEY: "cal_x" })).toBe("offline");
     expect(demoMode({ CALCOM_API_KEY: "cal_x", CALCOM_EVENT_TYPE_ID: "1" })).toBe("calcom");
   });
-  it("offline slots are in the future, on open days, with some already taken", () => {
-    const from = new Date(Date.UTC(2030, 0, 7)); // a Monday
-    const s = offlineSlots(from, 7, 420).map((x) => new Date(x));
+  it("offline slots follow the clinic's time zone, open days only", async () => {
+    const { zonedParts } = await import("./data/tz");
+    const tz = "America/Edmonton";
+    const s = offlineSlots(new Date("2030-01-07T12:00:00Z"), 7, tz, Date.parse("2030-01-01T00:00:00Z")).map((x) => new Date(x));
     expect(s.length).toBeGreaterThan(20);
-    expect(s.every((d) => d.getTime() > Date.now())).toBe(true);
-    expect(s.some((d) => d.getUTCDay() === 0 && d.getUTCHours() >= 7 && d.getUTCHours() < 24)).toBe(false); // closed Sunday (local)
-    // Monday 9:00 MST = 16:00Z is open or taken; 8:00 MST never offered
-    expect(s.some((d) => d.toISOString() === "2030-01-07T15:00:00.000Z")).toBe(false);
+    const parts = s.map((d) => zonedParts(d, tz));
+    expect(parts.some((p) => p.dow === 6)).toBe(false); // closed Sunday
+    expect(parts.every((p) => p.hour >= 9 && p.hour < 17)).toBe(true); // local opening hours
   });
 });

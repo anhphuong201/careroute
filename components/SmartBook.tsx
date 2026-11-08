@@ -11,6 +11,9 @@ import type { HouseholdMember } from "@/lib/types";
 import * as gcal from "@/lib/client/googleCalendar";
 import { googleCalendarUrl, pickSuggestions } from "@/lib/client/suggest";
 import { icsFor } from "@/lib/client/bookingHelper";
+import { tzLabel } from "@/lib/data/tz";
+import { DEMO_CLINIC_DISPLAY } from "@/lib/demoClinicConfig";
+import { offlineSlots } from "@/lib/demoClinic";
 
 interface SlotsResponse {
   clinic: { id: string; name: string; note: string };
@@ -80,9 +83,11 @@ export default function SmartBook(props: {
       .catch(() => setCalError(true));
   }, [connected]);
 
-  const open = useMemo(() => gcal.freeOf((data?.slots ?? []).map((s) => new Date(s)), busy), [data, busy]);
-  const suggestions = useMemo(() => pickSuggestions(open, member.freeTimes ?? []), [open, member.freeTimes]);
-  const fmt = (d: Date) => d.toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  // Offline demo: make the made-up times in the browser, so "9:00" matches this device's clock and calendar.
+  const rawSlots = useMemo(() => (data?.mode === "offline" ? offlineSlots(new Date(), 7, props.tz) : data?.slots ?? []), [data, props.tz]);
+  const open = useMemo(() => gcal.freeOf(rawSlots.map((s) => new Date(s)), busy), [rawSlots, busy]);
+  const suggestions = useMemo(() => pickSuggestions(open, member.freeTimes ?? [], 3, props.tz), [open, member.freeTimes, props.tz]);
+  const fmt = (d: Date) => d.toLocaleString(locale, { timeZone: props.tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const name = member.contact?.legalName || member.displayName;
   const c = member.contact ?? {};
 
@@ -100,13 +105,13 @@ export default function SmartBook(props: {
       let calendarLink: string | null | undefined;
       if (connected && addToCal) {
         calendarLink = await gcal.addEvent({
-          title: `Appointment – ${data?.clinic.name ?? "CareRoute Demo Pharmacy"} (DEMO)`,
+          title: `Appointment – ${data?.clinic.name ?? DEMO_CLINIC_DISPLAY.name}${DEMO_CLINIC_DISPLAY.badge ? " (DEMO)" : ""}`,
           start: chosen,
-          location: "Demo clinic (prototype)",
+          location: DEMO_CLINIC_DISPLAY.address,
           description: [props.reason, `Booking: ${j.uid}`].filter(Boolean).join("\n"),
         });
       }
-      props.onBooked({ uid: j.uid, start: j.start, clinicName: data?.clinic.name ?? "CareRoute Demo Pharmacy", mode: j.mode, calendarLink });
+      props.onBooked({ uid: j.uid, start: j.start, clinicName: data?.clinic.name ?? DEMO_CLINIC_DISPLAY.name, mode: j.mode, calendarLink });
     } catch {
       setState("error");
     }
@@ -122,7 +127,8 @@ export default function SmartBook(props: {
           </button>
         </div>
         <p className="small">
-          <span className="badge">DEMO</span> {data?.clinic.name ?? "CareRoute Demo Pharmacy"} – {t.demoClinicNote}
+          {DEMO_CLINIC_DISPLAY.badge && <span className="badge">DEMO</span>} <strong>{data?.clinic.name ?? DEMO_CLINIC_DISPLAY.name}</strong>
+          {DEMO_CLINIC_DISPLAY.badge && <> – {t.demoClinicNote}</>}
           {data?.mode === "offline" && <span className="muted"> ({t.offlineDemo})</span>}
         </p>
 
@@ -162,7 +168,9 @@ export default function SmartBook(props: {
             <p className="small muted">{t.noSlots}</p>
           ) : (
             <>
-              <p className="small muted">{connected ? t.suggestFree : t.suggestNoCal}</p>
+              <p className="small muted">
+                {connected ? t.suggestFree : t.suggestNoCal} <span className="tz-chip">🕒 {t.timesIn} {tzLabel(props.tz, locale)}</span>
+              </p>
               <div className="chips">
                 {(showAll ? open.slice(0, 24) : suggestions).map((d) => (
                   <button key={d.toISOString()} className={`chip ${chosen?.getTime() === d.getTime() ? "on" : ""}`} aria-pressed={chosen?.getTime() === d.getTime()} onClick={() => setChosen(d)}>

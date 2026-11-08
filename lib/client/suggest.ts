@@ -4,6 +4,7 @@
  * on the booking page. Times are local to the device (the person is in the province).
  */
 import { parseHours } from "../data/hours";
+import { dayKey, zonedDate, zonedParts } from "../data/tz";
 
 export const FREE_WINDOWS: Record<string, { weekend: boolean; from: number; to: number }> = {
   "wd-am": { weekend: false, from: 9 * 60, to: 12 * 60 },
@@ -13,30 +14,26 @@ export const FREE_WINDOWS: Record<string, { weekend: boolean; from: number; to: 
   "we-pm": { weekend: true, from: 12 * 60, to: 17 * 60 },
 };
 
-export function suggestSlots(hoursRaw: string, freeKeys: string[], now = new Date(), count = 3): Date[] {
+export function suggestSlots(hoursRaw: string, freeKeys: string[], now = new Date(), count = 3, timeZone = "America/Edmonton"): Date[] {
   const parsed = parseHours(hoursRaw);
   const out: Date[] = [];
   const earliest = now.getTime() + 2 * 3600 * 1000;
+  const p0 = zonedParts(now, timeZone);
   for (let i = 0; i < 8 && out.length < count; i++) {
-    const day = new Date(now);
-    day.setHours(0, 0, 0, 0);
-    day.setDate(day.getDate() + i);
-    const dow = (day.getDay() + 6) % 7; // 0 = Monday
-    const weekend = dow >= 5;
-    const open = parsed.always ? [[0, 1440] as [number, number]] : parsed.week[dow];
+    const p = zonedParts(zonedDate(p0.year, p0.month, p0.day + i, 12, 0, timeZone), timeZone);
+    const weekend = p.dow >= 5;
+    const open = parsed.always ? [[0, 1440] as [number, number]] : parsed.week[p.dow];
     if (!open || open.length === 0) continue; // closed or hours unknown
     for (const key of freeKeys) {
       const w = FREE_WINDOWS[key];
       if (!w || w.weekend !== weekend) continue;
       for (const [o, c] of open) {
-        let start = Math.max(w.from, o);
+        let start = Math.ceil(Math.max(w.from, o) / 30) * 30;
         const end = Math.min(w.to, c);
-        // round up to the next :00 / :30 and respect "at least 2 hours from now"
-        start = Math.ceil(start / 30) * 30;
         while (start + 30 <= end) {
-          const t = new Date(day.getTime() + start * 60000);
+          const t = zonedDate(p.year, p.month, p.day, Math.floor(start / 60), start % 60, timeZone);
           if (t.getTime() >= earliest) {
-            if (!out.some((x) => x.toDateString() === t.toDateString())) out.push(t);
+            if (!out.some((x) => dayKey(x, timeZone) === dayKey(t, timeZone))) out.push(t);
             break;
           }
           start += 30;
@@ -58,10 +55,11 @@ export function googleCalendarUrl(opts: { title: string; start: Date; minutes?: 
 }
 
 /** Pick up to `count` suggestions from open slots: prefer the person's free windows, one per day, earliest first. */
-export function pickSuggestions(slots: Date[], freeKeys: string[], count = 3): Date[] {
+export function pickSuggestions(slots: Date[], freeKeys: string[], count = 3, timeZone = "America/Edmonton"): Date[] {
   const inWindow = (d: Date) => {
-    const dow = (d.getDay() + 6) % 7;
-    const min = d.getHours() * 60 + d.getMinutes();
+    const p = zonedParts(d, timeZone);
+    const dow = p.dow;
+    const min = p.hour * 60 + p.minute;
     return freeKeys.some((k) => {
       const w = FREE_WINDOWS[k];
       return w && w.weekend === dow >= 5 && min >= w.from && min < w.to;
@@ -71,7 +69,7 @@ export function pickSuggestions(slots: Date[], freeKeys: string[], count = 3): D
   const pool = preferred.length ? preferred : slots;
   const out: Date[] = [];
   for (const s of pool) {
-    if (out.some((x) => x.toDateString() === s.toDateString())) continue;
+    if (out.some((x) => dayKey(x, timeZone) === dayKey(s, timeZone))) continue;
     out.push(s);
     if (out.length >= count) break;
   }
