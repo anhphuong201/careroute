@@ -48,7 +48,20 @@ export default function SmartBook(props: {
   const [state, setState] = useState<"idle" | "booking" | "error">("idle");
   const [calError, setCalError] = useState(false);
 
-  useEffect(() => gcal.onChange(() => setConnected(gcal.isConnected())), []);
+  const [ready, setReady] = useState(gcal.isReady());
+  const [gError, setGError] = useState("");
+  useEffect(
+    () =>
+      gcal.onChange(() => {
+        setConnected(gcal.isConnected());
+        setGError(gcal.getLastError());
+      }),
+    [],
+  );
+  // Load Google sign-in before the tap so the popup is allowed to open.
+  useEffect(() => {
+    gcal.prepare().then(setReady);
+  }, []);
   useEffect(() => {
     fetch(`/api/demo-clinic/slots?tz=${encodeURIComponent(props.tz)}&days=7`)
       .then((r) => r.json())
@@ -128,9 +141,14 @@ export default function SmartBook(props: {
           ) : (
             <>
               <p className="small muted">{t.gcalWhy}</p>
-              <button className="btn btn-soft" onClick={() => gcal.connect()}>
-                🔗 {t.connectGcal}
+              <button className="btn btn-soft" disabled={!ready} onClick={() => gcal.connect()}>
+                🔗 {ready ? t.connectGcal : "…"}
               </button>
+              {gError && (
+                <p className="small warn">
+                  {gError === "popup_failed_to_open" ? t.gcalPopupBlocked : gError === "popup_closed" ? t.gcalPopupClosed : `${t.gcalFailed} (${gError})`}
+                </p>
+              )}
             </>
           )}
         </div>

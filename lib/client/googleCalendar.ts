@@ -55,23 +55,65 @@ function loadScript(): Promise<void> {
   });
 }
 
-export async function connect(): Promise<boolean> {
+type TokenClient = { requestAccessToken(opts?: { prompt?: string }): void };
+let client: TokenClient | null = null;
+let pending: ((ok: boolean, why?: string) => void) | null = null;
+let lastError = "";
+export const getLastError = () => lastError;
+
+/**
+ * Load Google's script and create the token client AHEAD of the tap.
+ * Browsers only allow the sign-in popup if it opens directly from the user's tap,
+ * so connect() must not wait for anything before calling requestAccessToken().
+ */
+export async function prepare(): Promise<boolean> {
   if (!GOOGLE_CLIENT_ID) return false;
-  await loadScript();
+  if (client) return true;
+  try {
+    await loadScript();
+  } catch {
+    lastError = "script";
+    return false;
+  }
+  client = window.google!.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: SCOPES,
+    callback: (r) => {
+      if (r.access_token) {
+        token = { value: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 - 60000 };
+        lastError = "";
+        notify();
+        pending?.(true);
+      } else {
+        lastError = r.error ?? "denied";
+        notify();
+        pending?.(false, lastError);
+      }
+      pending = null;
+    },
+    error_callback: (e) => {
+      // e.type: "popup_failed_to_open" (blocked) | "popup_closed" | "unknown"
+      lastError = e.type;
+      notify();
+      pending?.(false, e.type);
+      pending = null;
+    },
+  });
+  return true;
+}
+
+export const isReady = () => !!client;
+
+/** Call directly from a click handler (after prepare() has finished). */
+export function connect(): Promise<boolean> {
+  if (!client) {
+    lastError = GOOGLE_CLIENT_ID ? "not_ready" : "not_configured";
+    notify();
+    return Promise.resolve(false);
+  }
   return new Promise((resolve) => {
-    const client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: SCOPES,
-      callback: (r) => {
-        if (r.access_token) {
-          token = { value: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 - 60000 };
-          notify();
-          resolve(true);
-        } else resolve(false);
-      },
-      error_callback: () => resolve(false),
-    });
-    client.requestAccessToken();
+    pending = (ok) => resolve(ok);
+    client!.requestAccessToken();
   });
 }
 

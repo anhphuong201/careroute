@@ -375,6 +375,24 @@ export default function CareRouteApp() {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
+  const sheetOpen = !!helperFor || smartOpen;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setHelperFor(null);
+        setSmartOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [sheetOpen]);
+
   const showNav = !["onboard", "emergency", "loading", "book"].includes(screen);
 
   if (screen === "onboard")

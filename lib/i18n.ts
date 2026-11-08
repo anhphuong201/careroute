@@ -251,6 +251,9 @@ const en = {
   tryOneTap: "Try one-tap booking (demo clinic)",
   tryOneTapHelp: "See how CareRoute books for you once a pharmacy connects: your calendar + their open times.",
   savedToGcal: "Added to your Google Calendar",
+  gcalPopupBlocked: "Your browser blocked the Google sign-in window. Allow pop-ups for this site and tap again.",
+  gcalPopupClosed: "The Google sign-in window was closed before finishing.",
+  gcalFailed: "Google sign-in didn't work. Check that this site's address is allowed in the Google OAuth client",
   routeNames: {
     pharmacist: "See a pharmacist",
     virtual_care: "Virtual care (phone or video)",
@@ -509,6 +512,9 @@ const fr: typeof en = {
   tryOneTap: "Essayer la réservation en un geste (clinique démo)",
   tryOneTapHelp: "Voyez comment CareRoute réserve pour vous quand une pharmacie se connecte : votre agenda + leurs disponibilités.",
   savedToGcal: "Ajouté à votre Google Agenda",
+  gcalPopupBlocked: "Votre navigateur a bloqué la fenêtre de connexion Google. Autorisez les fenêtres contextuelles et réessayez.",
+  gcalPopupClosed: "La fenêtre de connexion Google a été fermée avant la fin.",
+  gcalFailed: "La connexion Google n'a pas fonctionné. Vérifiez que l'adresse du site est autorisée dans le client OAuth Google",
   routeNames: {
     pharmacist: "Voir un pharmacien",
     virtual_care: "Soins virtuels (téléphone ou vidéo)",

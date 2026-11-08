@@ -100,6 +100,9 @@ export default function BookingHelper(props: {
   const [connected, setConnected] = useState(gcal.isConnected());
   useEffect(() => gcal.onChange(() => setConnected(gcal.isConnected())), []);
   useEffect(() => {
+    gcal.prepare();
+  }, []);
+  useEffect(() => {
     if (!connected) return setBusy([]);
     const now = new Date();
     gcal.getBusy(now, new Date(now.getTime() + 8 * 86400000)).then(setBusy).catch(() => setBusy([]));
