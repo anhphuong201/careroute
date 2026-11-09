@@ -1,5 +1,6 @@
 "use client";
 
+import { I } from "@/components/Icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STRINGS, type Lang, type Strings } from "@/lib/i18n";
 import { ALL_REGIONS, PROVINCES, isEnabledProvince, type ProvinceCode } from "@/lib/provinces";
@@ -91,8 +92,8 @@ function ageMonths(m: HouseholdMember): number | undefined {
 
 const TZ: Record<ProvinceCode, string> = { AB: "America/Edmonton", BC: "America/Vancouver" };
 
-const KIND_ICON: Record<string, string> = { pharmacy: "💊", walk_in: "🏥", urgent_care: "🚑", emergency: "🏨", clinic: "🩺", virtual: "📹" };
-const ROUTE_ICON: Record<string, string> = { pharmacist: "💊", virtual_care: "📹", walk_in: "🏥", call_811: "📞", registry: "👩‍⚕️", family_doctor: "🩺" };
+const KIND_ICON: Record<string, string> = { pharmacy: "pill", walk_in: "clinic", urgent_care: "ambulance", emergency: "building", clinic: "steth", virtual: "video" };
+const ROUTE_ICON: Record<string, string> = { pharmacist: "pill", virtual_care: "video", walk_in: "clinic", call_811: "phone", registry: "doctor", family_doctor: "steth" };
 
 const DEMO: Record<ProvinceCode, HouseholdMember[]> = {
   AB: [
@@ -428,7 +429,7 @@ export default function CareRouteApp() {
       <header className="topbar">
         <div className="who">
           <span className="avatar" aria-hidden>
-            {member.displayName ? initial(member.displayName) : "🙂"}
+            {member.displayName ? initial(member.displayName) : <I n="user" />}
           </span>
           <span>
             <span className="who-name">{member.displayName || t.hello}</span>
@@ -437,7 +438,7 @@ export default function CareRouteApp() {
         </div>
         <label className="icon-btn" title={t.language}>
           <span className="sr-only">{t.language}</span>
-          <span aria-hidden>🌐</span>
+          <I n="globe" size={22} />
           <select
             value={lang}
             onChange={(e) => {
@@ -463,12 +464,12 @@ export default function CareRouteApp() {
             <section>
               <h1 className="hero-title">{t.heroTitle}</h1>
               <button className="search" onClick={() => startSearch(text)}>
-                <span aria-hidden>🔍</span>
+                <I n="search" />
                 <span className="search-ph">{text || t.searchPlaceholder}</span>
               </button>
 
               <label className="label" htmlFor="province">
-                📍 {t.province}
+                <I n="pin" /> {t.province}
               </label>
               <div className="province-picker">
                 <select id="province" value={province} onChange={(e) => isEnabledProvince(e.target.value) && chooseProvince(e.target.value)}>
@@ -486,16 +487,16 @@ export default function CareRouteApp() {
               <div className="cat-scroll">
                 {(
                   [
-                    ["💊", t.catRenewal, t.exRenewal],
-                    ["🧪", t.catLab, t.exLab],
-                    ["🩹", t.catSymptom, t.exMinor],
-                    ["📹", t.catVirtual, t.catVirtualText],
-                    ["👩‍⚕️", t.catDoctor, t.catDoctorText],
+                    ["pill", t.catRenewal, t.exRenewal],
+                    ["lab", t.catLab, t.exLab],
+                    ["bandage", t.catSymptom, t.exMinor],
+                    ["video", t.catVirtual, t.catVirtualText],
+                    ["doctor", t.catDoctor, t.catDoctorText],
                   ] as [string, string, string][]
                 ).map(([icon, label, prefill], i) => (
                   <button key={label} className={`cat ${i === 0 ? "cat-primary" : ""}`} onClick={() => startSearch(prefill)}>
                     <span className="cat-icon" aria-hidden>
-                      {icon}
+                      <I n={icon} size={20} />
                     </span>
                     {label}
                   </button>
@@ -532,7 +533,7 @@ export default function CareRouteApp() {
               )}
 
               <button className="btn" onClick={() => startSearch()}>
-                {t.continue} →
+                {t.continue} <I n="next" />
               </button>
             </section>
           )}
@@ -570,24 +571,24 @@ export default function CareRouteApp() {
               <div className="stack">
                 {(
                   [
-                    ["chest_pain", t.flagChest, "❤️"],
-                    ["breathing", t.flagBreathing, "🫁"],
-                    ["stroke_signs", t.flagStroke, "🧠"],
-                    ["severe_bleeding", t.flagBleeding, "🩸"],
-                    ["suicidal_thoughts", t.flagSuicide, "💬"],
-                    ...(member.ageGroup === "infant" ? [["infant_fever", t.flagInfantFever, "🌡️"]] : []),
+                    ["chest_pain", t.flagChest, "heart"],
+                    ["breathing", t.flagBreathing, "lungs"],
+                    ["stroke_signs", t.flagStroke, "brain"],
+                    ["severe_bleeding", t.flagBleeding, "drop"],
+                    ["suicidal_thoughts", t.flagSuicide, "chat"],
+                    ...(member.ageGroup === "infant" ? [["infant_fever", t.flagInfantFever, "thermo"]] : []),
                   ] as [RedFlagCategory, string, string][]
                 ).map(([c, label, icon]) => (
                   <button key={c} className="flag" onClick={() => flag(c)}>
                     <span className="flag-icon" aria-hidden>
-                      {icon}
+                      <I n={icon} size={20} />
                     </span>
                     {label}
                   </button>
                 ))}
               </div>
               <button className="btn" onClick={() => setScreen("need")}>
-                ✓ {t.noneOfThese}
+                <I n="check" /> {t.noneOfThese}
               </button>
             </section>
           )}
@@ -607,7 +608,7 @@ export default function CareRouteApp() {
                   const on = text.toLowerCase().includes(ex.toLowerCase());
                   return (
                     <button key={ex} className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => setText(toggleItem(text, ex))}>
-                      {on ? "✓ " : ""}
+                      {on ? <I n="check" size={14} /> : null}
                       {ex}
                     </button>
                   );
@@ -626,7 +627,7 @@ export default function CareRouteApp() {
               </div>
               <SectionHead title={t.location} />
               <button className={`btn btn-soft ${locStatus === "on" ? "is-on" : ""}`} onClick={askLocation} aria-pressed={locStatus === "on"}>
-                📍 {locStatus === "on" ? t.locationOn : t.useMyLocation}
+                <I n="pin" /> {locStatus === "on" ? t.locationOn : t.useMyLocation}
               </button>
               <label className="label" htmlFor="city">
                 {t.orChooseCity}
@@ -638,7 +639,7 @@ export default function CareRouteApp() {
                 ))}
               </select>
               <button className="btn" disabled={!text.trim()} onClick={() => submit()}>
-                {t.findCare} →
+                {t.findCare} <I n="next" />
               </button>
             </section>
           )}
@@ -691,16 +692,16 @@ export default function CareRouteApp() {
             <section>
               <div className="card card-booked" role="status">
                 {booking.simulated ? <span className="badge">{t.simulated}</span> : <span className="badge badge-real">{t.realBooking}</span>}
-                <h1>✅ {t.booked}</h1>
+                <h1><I n="checkCircle" /> {t.booked}</h1>
                 <p className="big">
                   <strong>{booking.facility_name}</strong>
                   <br />
                   <span className="muted">{booking.facility_address}</span>
                 </p>
                 <div className="stats">
-                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { timeZone: TZ[province], weekday: "short", month: "short", day: "numeric" })} label={t.dateLabel} />
-                  <Stat icon="🕒" value={`${new Date(booking.slot).toLocaleTimeString(loc, { timeZone: TZ[province], hour: "numeric", minute: "2-digit" })} ${tzLabel(TZ[province], loc, new Date(booking.slot))}`} label={t.time} />
-                  {booking.confirmation_code && <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />}
+                  <Stat icon="cal" value={new Date(booking.slot).toLocaleDateString(loc, { timeZone: TZ[province], weekday: "short", month: "short", day: "numeric" })} label={t.dateLabel} />
+                  <Stat icon="clock" value={`${new Date(booking.slot).toLocaleTimeString(loc, { timeZone: TZ[province], hour: "numeric", minute: "2-digit" })} ${tzLabel(TZ[province], loc, new Date(booking.slot))}`} label={t.time} />
+                  {booking.confirmation_code && <Stat icon="file" value={booking.confirmation_code} label={t.confirmation} />}
                 </div>
                 <p>
                   <strong>{t.bring}:</strong> {booking.instructions}
@@ -717,19 +718,19 @@ export default function CareRouteApp() {
                 )}
                 {gcalLink !== null && (
                   <p className="saved-gcal">
-                    ✅ {t.savedToGcal}
+                    <I n="checkCircle" /> {t.savedToGcal}
                     {gcalLink ? (
                       <>
                         {" "}
                         <a href={gcalLink} target="_blank" rel="noreferrer">
-                          ↗
+                          <I n="ext" size={14} />
                         </a>
                       </>
                     ) : null}
                   </p>
                 )}
                 <button className="btn btn-soft" onClick={() => downloadCalendar(booking)}>
-                  📆 {t.addToCalendar}
+                  <I n="calPlus" /> {t.addToCalendar}
                 </button>
                 <a
                   className="btn btn-ghost"
@@ -742,12 +743,12 @@ export default function CareRouteApp() {
                     details: [result?.booking_note, booking.confirmation_code ? `Confirmation: ${booking.confirmation_code}` : ""].filter(Boolean).join("\n"),
                   })}
                 >
-                  📅 {t.addGoogleCal} ↗
+                  <I n="cal" /> {t.addGoogleCal} <I n="ext" size={14} />
                 </a>
               </div>
               <SummaryCard t={t} member={member} onDownload={() => downloadSummary(member)} />
               <button className="btn btn-ghost" onClick={() => setScreen("result")}>
-                ← {t.back}
+                <I n="back" /> {t.back}
               </button>
             </section>
           )}
@@ -763,7 +764,7 @@ export default function CareRouteApp() {
                   return (
                     <li key={h.id} className="card history-item">
                       <span className={`tile ${h.route === "emergency" ? "tile-danger" : ""}`} aria-hidden>
-                        {h.route === "emergency" ? "🚨" : ROUTE_ICON[h.route] ?? "•"}
+                        <I n={h.route === "emergency" ? "siren" : ROUTE_ICON[h.route] ?? "info"} size={22} />
                       </span>
                       <div>
                         <strong>{h.route === "emergency" ? "911 / 988 / 811" : t.routeNames[h.route] ?? h.route}</strong>
@@ -775,7 +776,7 @@ export default function CareRouteApp() {
                         <div className="row">
                           {h.sourceUrl && (
                             <a className="link-small" href={h.sourceUrl} target="_blank" rel="noreferrer">
-                              {t.source} ↗
+                              {t.source} <I n="ext" size={14} />
                             </a>
                           )}
                           {h.bookingReal ? (
@@ -815,14 +816,14 @@ export default function CareRouteApp() {
                         </span>
                       </span>
                       <button className="btn-small" onClick={() => downloadSummary(m)}>
-                        📄 PDF
+                        <I n="file" /> PDF
                       </button>
                     </li>
                   ))}
               </ul>
               {members.filter((m) => m.personaId).length === 0 && (
                 <button className="btn btn-soft" onClick={() => setScreen("household")}>
-                  👪 {t.myHousehold}
+                  <I n="family" /> {t.myHousehold}
                 </button>
               )}
             </section>
@@ -830,13 +831,13 @@ export default function CareRouteApp() {
 
           {screen === "error" && (
             <section>
-              <h1>⚠️</h1>
+              <h1><I n="alert" size={32} /></h1>
               <p className="big">{error || t.errorGeneric}</p>
               <a className="btn btn-soft" href="tel:811">
-                📞 {t.call811}
+                <I n="phone" /> {t.call811}
               </a>
               <button className="btn btn-ghost" onClick={() => setScreen("need")}>
-                ← {t.back}
+                <I n="back" /> {t.back}
               </button>
             </section>
           )}
@@ -884,13 +885,13 @@ export default function CareRouteApp() {
 
       {showNav && !helperFor && !smartOpen && (
         <nav className="bottom-nav" aria-label="Main">
-          <NavBtn icon="🏠" label={t.navHome} on={screen === "home"} onClick={() => setScreen("home")} />
-          <NavBtn icon="🕘" label={t.navHistory} on={screen === "history"} onClick={() => setScreen("history")} />
+          <NavBtn icon="home" label={t.navHome} on={screen === "home"} onClick={() => setScreen("home")} />
+          <NavBtn icon="history" label={t.navHistory} on={screen === "history"} onClick={() => setScreen("history")} />
           <button className="fab" aria-label={t.navNew} onClick={() => startSearch("")}>
             +
           </button>
-          <NavBtn icon="👪" label={t.navFamily} on={screen === "household"} onClick={() => setScreen("household")} />
-          <NavBtn icon="📄" label={t.navRecords} on={screen === "records"} onClick={() => setScreen("records")} />
+          <NavBtn icon="family" label={t.navFamily} on={screen === "household"} onClick={() => setScreen("household")} />
+          <NavBtn icon="file" label={t.navRecords} on={screen === "records"} onClick={() => setScreen("records")} />
         </nav>
       )}
     </div>
@@ -915,7 +916,7 @@ function SectionHead({ title, action, onAction }: { title: string; action?: stri
 function BackLink({ t, onClick }: { t: Strings; onClick: () => void }) {
   return (
     <button className="back" onClick={onClick} aria-label={t.back}>
-      ←
+      <I n="back" />
     </button>
   );
 }
@@ -936,7 +937,7 @@ function PersonChip({ label, sub, on, onClick }: { label: string; sub: string; o
 function NavBtn({ icon, label, on, onClick }: { icon: string; label: string; on: boolean; onClick: () => void }) {
   return (
     <button className={`nav-btn ${on ? "on" : ""}`} aria-current={on ? "page" : undefined} onClick={onClick}>
-      <span aria-hidden>{icon}</span>
+      <I n={icon} size={22} />
       <span>{label}</span>
     </button>
   );
@@ -946,7 +947,7 @@ function Stat({ icon, value, label }: { icon: string; value: string; label: stri
   return (
     <div className="stat">
       <span className="stat-icon" aria-hidden>
-        {icon}
+        <I n={icon} size={16} />
       </span>
       <span>
         <span className="stat-value">{value}</span>
@@ -959,7 +960,7 @@ function Stat({ icon, value, label }: { icon: string; value: string; label: stri
 function SummaryCard({ t, member, onDownload }: { t: Strings; member: HouseholdMember; onDownload: () => void }) {
   return (
     <div className="card">
-      <h2>📄 {t.summaryTitle}</h2>
+      <h2><I n="file" /> {t.summaryTitle}</h2>
       <p className="muted">{t.summaryBody}</p>
       {member.personaId ? (
         <button className="btn btn-soft" onClick={onDownload}>
@@ -1006,23 +1007,23 @@ function Onboarding({ t, onStart }: { t: Strings; onStart: () => void }) {
     <div className="onboard">
       <div className="onboard-deco" aria-hidden />
       <p className="onboard-brand">
-        <span aria-hidden>➜</span> {t.onboardBrand}
+        <I n="nav" size={20} /> {t.onboardBrand}
       </p>
       <h1>{t.onboardTitle}</h1>
       <div className="onboard-card">
         <h2>{t.onboardCard}</h2>
         <div className="onboard-icons" aria-hidden>
-          <span>💊</span>
-          <span>🏥</span>
-          <span>📹</span>
-          <span>📞</span>
+          <span><I n="pill" size={24} /></span>
+          <span><I n="clinic" size={24} /></span>
+          <span><I n="video" size={24} /></span>
+          <span><I n="phone" size={24} /></span>
         </div>
         <p>{t.onboardBody}</p>
       </div>
       <button className="onboard-go" onClick={onStart} aria-label={t.getStarted}>
         <span>{t.getStarted}</span>
         <span className="onboard-arrow" aria-hidden>
-          ↗
+          <I n="ext" size={14} />
         </span>
       </button>
       <a className="onboard-911" href="tel:911">
@@ -1085,9 +1086,8 @@ function HouseholdEditor(props: {
               </span>
             </span>
             <span className="row">
-              <button className="btn-small" onClick={() => setDraft({ ...m })}>
-                ✏️
-                <span className="sr-only">{m.displayName}</span>
+              <button className="btn-small" onClick={() => setDraft({ ...m })} aria-label={`${t.editLabel} ${m.displayName}`}>
+                <I n="edit" />
               </button>
               <button className="btn-small" onClick={() => props.onSave({ ...household, members: household.members.filter((x) => x.id !== m.id) })}>
                 {t.remove}
@@ -1120,7 +1120,7 @@ function HouseholdEditor(props: {
             ))}
           </select>
           <fieldset className="contact-fields">
-            <legend>🔒 {t.bookingDetails}</legend>
+            <legend><I n="lock" /> {t.bookingDetails}</legend>
             <p className="small muted">{t.bookingDetailsHelp}</p>
             <label className="label" htmlFor="c-name">
               {t.legalName}
@@ -1138,7 +1138,7 @@ function HouseholdEditor(props: {
               {t.emailLabel}
             </label>
             <input id="c-email" type="email" autoComplete="email" value={draft.contact?.email ?? ""} onChange={(e) => setContact("email", e.target.value)} />
-            <p className="label">🗓 {t.freeTimes}</p>
+            <p className="label"><I n="cal" /> {t.freeTimes}</p>
             <p className="small muted">{t.freeTimesHelp}</p>
             <div className="chips">
               {Object.keys(FREE_WINDOWS).map((k) => {
@@ -1150,7 +1150,7 @@ function HouseholdEditor(props: {
                     aria-pressed={on}
                     onClick={() => setDraft({ ...draft, freeTimes: on ? (draft.freeTimes ?? []).filter((x) => x !== k) : [...(draft.freeTimes ?? []), k] })}
                   >
-                    {on ? "✓ " : ""}
+                    {on ? <I n="check" size={14} /> : null}
                     {t.freeSlots[k]}
                   </button>
                 );
@@ -1210,19 +1210,19 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
   return (
     <section className="emergency">
       <div className="emergency-icon" aria-hidden>
-        🚨
+        <I n="siren" size={44} />
       </div>
       <h1>{t.emergencyTitle}</h1>
       <p className="big">{body}</p>
       {action === "call_911" && (
         <a className="btn btn-danger" href="tel:911">
-          📞 {t.call911}
+          <I n="phone" /> {t.call911}
         </a>
       )}
       {action === "call_911_or_988" && (
         <>
           <a className="btn btn-danger" href="tel:988">
-            📞 {t.call988}
+            <I n="phone" /> {t.call988}
           </a>
           <a className="btn btn-danger-outline" href="tel:911">
             {t.call911}
@@ -1232,7 +1232,7 @@ function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; o
       {action === "call_811" && (
         <>
           <a className="btn btn-danger" href="tel:811">
-            📞 {t.call811}
+            <I n="phone" /> {t.call811}
           </a>
           <a className="btn btn-danger-outline" href="tel:911">
             {t.call911}
@@ -1253,14 +1253,14 @@ function SourceInfo({ t, sources, light }: { t: Strings; sources: { title: strin
   return (
     <span className={`source-info ${light ? "is-light" : ""}`}>
       <button className="source-btn" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`${t.source} (${sources.length})`} title={t.source}>
-        ⓘ
+        <I n="info" />
       </button>
       {open && (
         <span className="source-pop" role="note">
           <strong>{t.source}</strong>
           {sources.map((s) => (
             <a key={s.url + s.title} href={s.url} target="_blank" rel="noreferrer">
-              {s.title} ↗
+              {s.title} <I n="ext" size={14} />
             </a>
           ))}
         </span>
@@ -1300,7 +1300,7 @@ function Result(props: {
         </div>
         <div className="row-center">
           <span className="route-icon" aria-hidden>
-            {ROUTE_ICON[r.rule.route] ?? "➜"}
+            <I n={ROUTE_ICON[r.rule.route] ?? "next"} size={24} />
           </span>
           <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
         </div>
@@ -1340,7 +1340,7 @@ function Result(props: {
             <div className="card">
               <p>{t.shareLocationForOptions}</p>
               <button className="btn btn-soft" onClick={props.onNeedLocation}>
-                📍 {t.useMyLocation}
+                <I n="pin" /> {t.useMyLocation}
               </button>
             </div>
           )}
@@ -1362,7 +1362,7 @@ function Result(props: {
 
       {r.registry && (
         <a className="registry-line" href={r.registry.source_url} target="_blank" rel="noreferrer">
-          👩‍⚕️ {t.alsoDoctor} ↗
+          <I n="doctor" /> {t.alsoDoctor} <I n="ext" size={14} />
         </a>
       )}
     </section>
@@ -1407,7 +1407,7 @@ function Alternative(props: {
   const head = (
     <>
       <span className="tile" aria-hidden>
-        {ROUTE_ICON[alt.rule.route] ?? "➜"}
+        <I n={ROUTE_ICON[alt.rule.route] ?? "next"} size={22} />
       </span>
       <span className="option-title">
         <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
@@ -1416,7 +1416,7 @@ function Alternative(props: {
         </span>
       </span>
       <span className="alt-chevron" aria-hidden>
-        {isCall ? "📞" : open ? "▲" : "▼"}
+        <I n={isCall ? "phone" : open ? "up" : "down"} />
       </span>
     </>
   );
@@ -1461,17 +1461,17 @@ function GettingThere(props: { t: Strings; loc: string; tz: string; place: Trave
   const uber = uberRideUrl(place, props.from);
   return (
     <div className="getting-there">
-      <h2>🧭 {t.gettingThere}</h2>
+      <h2><I n="nav" /> {t.gettingThere}</h2>
       <p className="small">
         {t.arriveBy} <strong>{fmtT(arrive)}</strong> ({t.arriveEarlyNote}) · {place.name}
       </p>
       <div className="row">
         <a className="btn-outline" href={transitArriveByUrl(place, appointment, tz, props.from)} target="_blank" rel="noreferrer">
-          🚌 {t.busSchedule}
+          <I n="bus" /> {t.busSchedule}
         </a>
         {uber && (
           <button className="btn-outline" onClick={() => setUberAsk(!uberAsk)} aria-expanded={uberAsk}>
-            🚗 {t.ride}
+            <I n="car" /> {t.ride}
           </button>
         )}
       </div>
@@ -1483,7 +1483,7 @@ function GettingThere(props: { t: Strings; loc: string; tz: string; place: Trave
           </p>
           <div className="row">
             <a className="btn-outline" href={uber} target="_blank" rel="noreferrer" onClick={() => setUberAsk(false)}>
-              {t.openUber} ↗
+              {t.openUber} <I n="ext" size={14} />
             </a>
             <button className="btn-outline" onClick={() => setUberAsk(false)}>
               {t.cancel}
@@ -1502,7 +1502,7 @@ function DemoPlaceCard({ t, loc, tz, kind, onBook }: { t: Strings; loc: string; 
     <li className="card option demo-place">
       <div className="option-head">
         <span className="tile" aria-hidden>
-          {KIND_ICON[kind] ?? "💊"}
+          <I n={KIND_ICON[kind] ?? "pill"} size={22} />
         </span>
         <span className="option-title">
           <strong>
@@ -1513,9 +1513,9 @@ function DemoPlaceCard({ t, loc, tz, kind, onBook }: { t: Strings; loc: string; 
       </div>
       <p className="muted small">{d.address}</p>
       <OpenBadge t={t} loc={loc} tz={tz} hours={d.hours} />
-      <p className="small">⚡ {t.demoPlaceNote}</p>
+      <p className="small"><I n="bolt" /> {t.demoPlaceNote}</p>
       <button className="btn btn-book-real" onClick={onBook}>
-        ⚡ {t.bookWithCalendar}
+        <I n="bolt" /> {t.bookWithCalendar}
       </button>
     </li>
   );
@@ -1561,11 +1561,11 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
     <li className="card option">
       <div className="option-head">
         <span className="tile" aria-hidden>
-          {KIND_ICON[f.kind] ?? "🏥"}
+          <I n={KIND_ICON[f.kind] ?? "clinic"} size={22} />
         </span>
         <span className="option-title">
           <strong>{f.name}</strong>
-          <span className="muted small block">{virtual ? (f.official ? `✓ ${t.official}` : t.kindNames.virtual) : t.kindNames[f.kind] ?? f.kind}</span>
+          <span className="muted small block">{virtual ? (f.official ? <><I n="check" size={14} /> {t.official}</> : t.kindNames.virtual) : t.kindNames[f.kind] ?? f.kind}</span>
         </span>
         {typeof f.distance_km === "number" && (
           <span className="pill">
@@ -1580,13 +1580,13 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
           <div className="modes">
             {(f.modes ?? []).map((m) => (
               <span key={m} className="mode">
-                {m === "video" ? `📹 ${t.video}` : m === "phone" ? `📞 ${t.phoneMode}` : `💬 ${t.chat}`}
+                <I n={m === "video" ? "video" : m === "phone" ? "phone" : "chat"} size={14} /> {m === "video" ? t.video : m === "phone" ? t.phoneMode : t.chat}
               </span>
             ))}
           </div>
           <p className="small">{f.how}</p>
           <p className="muted small">
-            🕒 {f.hours} · {f.cost}
+            <I n="clock" /> {f.hours} · {f.cost}
           </p>
           {f.limits && (
             <p className="small warn">
@@ -1609,18 +1609,18 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
           <OpenBadge t={t} loc={loc} tz={tz} hours={f.hours} />
           {f.phone ? (
             <p className="phone">
-              📞{" "}
+              <I n="phone" />{" "}
               <a href={`tel:${f.phone.replace(/[^\d+]/g, "")}`}>{f.phone}</a>
             </p>
           ) : (
             <p className="small muted">
-              📞 {t.phoneNotListed} ·{" "}
+              <I n="phone" /> {t.phoneNotListed} ·{" "}
               <a href={mapsUrl(f)} target="_blank" rel="noreferrer">
-                {t.findPhone} ↗
+                {t.findPhone} <I n="ext" size={14} />
               </a>
             </p>
           )}
-          {f.languages && <p className="muted small">🗣 {f.languages}</p>}
+          {f.languages && <p className="muted small"><I n="lang" /> {f.languages}</p>}
           {f.accepts_walk_in === "unknown" && <p className="small warn">{t.walkInUnknown}</p>}
         </>
       )}
@@ -1628,37 +1628,37 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
       <div className="option-actions">
         {f.phone && (
           <a className="btn-outline" href={`tel:${f.phone.replace(/[^\d+]/g, "")}`}>
-            📞 {t.callNumber}
+            <I n="phone" /> {t.callNumber}
           </a>
         )}
         {virtual ? (
           f.website && (
             <a className="btn-outline" href={f.website} target="_blank" rel="noreferrer">
-              🌐 {t.website}
+              <I n="globe" /> {t.website}
             </a>
           )
         ) : (
           <a className="btn-outline" href={mapsUrl(f)} target="_blank" rel="noreferrer">
-            🗺 {t.directions}
+            <I n="map" /> {t.directions}
           </a>
         )}
         {f.booking ? null : virtual && f.phone === "811" ? (
           <a className="round-go" href="tel:811" aria-label={`${t.call811}: ${f.name}`}>
-            📞
+            <I n="phone" />
           </a>
         ) : (
           <button className="round-go" onClick={onChoose} aria-label={`${t.choose}: ${f.name}`}>
-            ↗
+            <I n="ext" size={14} />
           </button>
         )}
       </div>
       {!virtual && (
         <div className="travel">
           <a className="chip-link" href={transitUrl(f)} target="_blank" rel="noreferrer">
-            🚌 {t.transit}
+            <I n="bus" /> {t.transit}
           </a>
           <button className="chip-link" onClick={() => setUberAsk(!uberAsk)} aria-expanded={uberAsk}>
-            🚗 {t.ride}
+            <I n="car" /> {t.ride}
           </button>
         </div>
       )}
@@ -1670,7 +1670,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
           </p>
           <div className="row">
             <a className="btn-outline" href={uberUrl(f)} target="_blank" rel="noreferrer" onClick={() => setUberAsk(false)}>
-              {t.openUber} ↗
+              {t.openUber} <I n="ext" size={14} />
             </a>
             <button className="btn-outline" onClick={() => setUberAsk(false)}>
               {t.cancel}
@@ -1681,14 +1681,14 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
       {f.booking && (
         <div className="book-real">
           <a className="btn btn-book-real" href={f.booking.url} target="_blank" rel="noreferrer" onClick={onHelper}>
-            📅 {t.bookOnline} ↗
+            <I n="cal" /> {t.bookOnline} <I n="ext" size={14} />
           </a>
           <p className="small muted">{f.booking.note}</p>
         </div>
       )}
       {!f.booking && f.phone && f.kind !== "virtual" && (
         <button className="link-btn" onClick={onHelper}>
-          📝 {t.callHelper}
+          <I n="edit" /> {t.callHelper}
         </button>
       )}
     </li>
@@ -1709,10 +1709,10 @@ function BookScreen(props: { t: Strings; loc: string; tz: string; option: Option
     <section className="book">
       <div className="book-hero">
         <button className="back back-light" onClick={props.onBack} aria-label={t.back}>
-          ←
+          <I n="back" />
         </button>
         <span className="book-tile" aria-hidden>
-          {KIND_ICON[f.kind] ?? "🏥"}
+          <I n={KIND_ICON[f.kind] ?? "clinic"} size={22} />
         </span>
         <h1>{f.name}</h1>
         <p>{virtual ? f.how : fullAddress(f)}</p>
@@ -1721,14 +1721,14 @@ function BookScreen(props: { t: Strings; loc: string; tz: string; option: Option
       <div className="card stats">
         {virtual ? (
           <>
-            <Stat icon="📹" value={(f.modes ?? []).map((m) => (m === "video" ? t.video : m === "phone" ? t.phoneMode : t.chat)).join(" · ")} label={t.modes} />
-            <Stat icon="🕒" value={f.hours} label={t.hoursLabel} />
+            <Stat icon="video" value={(f.modes ?? []).map((m) => (m === "video" ? t.video : m === "phone" ? t.phoneMode : t.chat)).join(" · ")} label={t.modes} />
+            <Stat icon="clock" value={f.hours} label={t.hoursLabel} />
           </>
         ) : (
           <>
-            {typeof f.distance_km === "number" && <Stat icon="📍" value={`${f.distance_km} ${t.km}`} label={t.distance} />}
+            {typeof f.distance_km === "number" && <Stat icon="pin" value={`${f.distance_km} ${t.km}`} label={t.distance} />}
             {typeof f.wait_minutes === "number" && <Stat icon="⏱" value={fmtWait(f.wait_minutes, t)} label={t.wait} />}
-            {f.languages && <Stat icon="🗣" value={f.languages.split(",").slice(0, 2).join(", ")} label={t.languagesLabel} />}
+            {f.languages && <Stat icon="lang" value={f.languages.split(",").slice(0, 2).join(", ")} label={t.languagesLabel} />}
           </>
         )}
       </div>
@@ -1736,7 +1736,7 @@ function BookScreen(props: { t: Strings; loc: string; tz: string; option: Option
       <div className="section-head">
         <h2>{t.selectDate}</h2>
         <span className="muted small">
-          {dayList[day].toLocaleDateString(loc, { timeZone: tz, month: "long" })} · 🕒 {tzLabel(tz, loc)}
+          {dayList[day].toLocaleDateString(loc, { timeZone: tz, month: "long" })} · <I n="clock" /> {tzLabel(tz, loc)}
         </span>
       </div>
       <div className="date-scroll" role="radiogroup" aria-label={t.selectDate}>
@@ -1774,13 +1774,13 @@ function routeAction(r: RouteResult, t: Strings) {
   if (r.rule.route === "call_811")
     return (
       <a className="btn btn-white" href="tel:811">
-        📞 {t.call811}
+        <I n="phone" /> {t.call811}
       </a>
     );
   if (r.rule.route === "registry")
     return (
       <a className="btn btn-white" href={r.rule.source_url} target="_blank" rel="noreferrer">
-        {t.routeNames.registry} ↗
+        {t.routeNames.registry} <I n="ext" size={14} />
       </a>
     );
   return null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { I } from "@/components/Icon";
 /**
  * One-tap booking with the DEMO clinic:
  * clinic's open slots (Cal.com) − your busy times (Google Calendar) → 3 suggestions →
@@ -121,9 +122,9 @@ export default function SmartBook(props: {
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="smart-title">
       <div className="modal-body helper">
         <div className="row-between">
-          <h2 id="smart-title">⚡ {t.smartTitle}</h2>
+          <h2 id="smart-title"><I n="bolt" /> {t.smartTitle}</h2>
           <button className="btn-mini" onClick={props.onClose}>
-            {t.closeLabel} ✕
+            {t.closeLabel} <I n="close" />
           </button>
         </div>
         <p className="small">
@@ -134,12 +135,12 @@ export default function SmartBook(props: {
 
         {/* Step 1: calendar */}
         <div className="card step">
-          <h3>1 · 📅 {t.yourCalendar}</h3>
+          <h3>1 · <I n="cal" /> {t.yourCalendar}</h3>
           {!gcal.isConfigured() ? (
             <p className="small muted">{t.gcalNotSetUp}</p>
           ) : connected ? (
             <p className="small">
-              ✅ {t.gcalConnected} {calError ? `– ${t.gcalError}` : `– ${busy.length} ${t.busyBlocks}`}{" "}
+              <I n="checkCircle" /> {t.gcalConnected} {calError ? `– ${t.gcalError}` : `– ${busy.length} ${t.busyBlocks}`}{" "}
               <button className="link-btn" onClick={() => gcal.disconnect()}>
                 {t.disconnect}
               </button>
@@ -148,7 +149,7 @@ export default function SmartBook(props: {
             <>
               <p className="small muted">{t.gcalWhy}</p>
               <button className="btn btn-soft" disabled={!ready} onClick={() => gcal.connect()}>
-                🔗 {ready ? t.connectGcal : "…"}
+                <I n="link" /> {ready ? t.connectGcal : "…"}
               </button>
               {gError && (
                 <p className="small warn">
@@ -161,7 +162,7 @@ export default function SmartBook(props: {
 
         {/* Step 2: pick a time */}
         <div className="card step">
-          <h3>2 · 🗓 {t.pickTime}</h3>
+          <h3>2 · <I n="cal" /> {t.pickTime}</h3>
           {!data ? (
             <p className="small muted">…</p>
           ) : open.length === 0 ? (
@@ -169,12 +170,12 @@ export default function SmartBook(props: {
           ) : (
             <>
               <p className="small muted">
-                {connected ? t.suggestFree : t.suggestNoCal} <span className="tz-chip">🕒 {t.timesIn} {tzLabel(props.tz, locale)}</span>
+                {connected ? t.suggestFree : t.suggestNoCal} <span className="tz-chip"><I n="clock" /> {t.timesIn} {tzLabel(props.tz, locale)}</span>
               </p>
               <div className="chips">
                 {(showAll ? open.slice(0, 24) : suggestions).map((d) => (
                   <button key={d.toISOString()} className={`chip ${chosen?.getTime() === d.getTime() ? "on" : ""}`} aria-pressed={chosen?.getTime() === d.getTime()} onClick={() => setChosen(d)}>
-                    {chosen?.getTime() === d.getTime() ? "✓ " : ""}
+                    {chosen?.getTime() === d.getTime() ? <I n="check" size={14} /> : null}
                     {fmt(d)}
                   </button>
                 ))}
@@ -188,7 +189,7 @@ export default function SmartBook(props: {
 
         {/* Step 3: approve */}
         <div className="card step">
-          <h3>3 · ✅ {t.approveSend}</h3>
+          <h3>3 · <I n="checkCircle" /> {t.approveSend}</h3>
           <ul className="send-list">
             <li>
               {t.legalName}: <strong>{name || "—"}</strong>
@@ -206,7 +207,7 @@ export default function SmartBook(props: {
           <p className="small muted">{t.sendNote}</p>
           {!c.legalName && (
             <button className="link-btn" onClick={props.onAddDetails}>
-              ✏️ {t.addDetails}
+              <I n="edit" /> {t.addDetails}
             </button>
           )}
           {connected && (

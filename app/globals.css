@@ -337,3 +337,110 @@ textarea, input, select { width: 100%; font: inherit; font-size: 1.05rem; paddin
 
 .getting-there { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
 .getting-there h2 { margin-bottom: 0.3rem; }
+
+/* ════════════════════════════════════════════════════════════════════
+   THEME v3 – calm, mostly one colour (navy) on soft blue-grey, white cards,
+   simple line icons. Red is reserved for emergency/safety only.
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #eef2f9;
+  --bg-top: #e6ecf7;
+  --surface: #ffffff;
+  --surface-2: #f4f6fb;
+  --fg: #1b2140;
+  --muted: #5b6382;
+  --border: #e2e7f1;
+  --primary: #232c84;        /* navy – white text 10.9:1 */
+  --primary-dark: #1a2266;
+  --primary-fg: #ffffff;
+  --primary-soft: #e7eaf7;
+  --ok: #232c84;             /* "good" states use the brand colour, not green */
+  --ok-soft: #e7eaf7;
+  --warn: #6b5200;
+  --shadow: 0 4px 18px rgba(27, 33, 64, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10142a; --bg-top: #141a35; --surface: #191f3d; --surface-2: #1f2648; --fg: #eef0fa; --muted: #b3b9d6;
+    --border: #2b3360; --primary: #a9b3ff; --primary-dark: #c3caff; --primary-fg: #10142a; --primary-soft: #262e5c;
+    --ok: #a9b3ff; --ok-soft: #262e5c; --warn: #f2cf6b; --shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  }
+}
+body { background: var(--bg); }
+
+/* icons */
+.ic { flex: none; vertical-align: -0.18em; }
+.btn .ic, .btn-outline .ic, .chip .ic, .chip-link .ic, .link-btn .ic, .btn-mini .ic, .btn-small .ic { margin-right: 0.15rem; }
+.tile, .route-icon, .cat-icon, .flag-icon, .stat-icon, .book-tile, .onboard-icons span, .emergency-icon { color: var(--primary); }
+.tile { background: var(--primary-soft); border-radius: 14px; }
+.cat-icon, .stat-icon { background: var(--primary-soft); }
+
+/* top bar & banner */
+.avatar { background: var(--primary-soft); color: var(--primary); box-shadow: none; border: 0; }
+.icon-btn { color: var(--primary); box-shadow: none; border: 1px solid var(--border); }
+.emergency-banner { background: var(--surface); }
+
+/* headings like the reference: bold, navy-black */
+.hero-title { font-weight: 800; letter-spacing: -0.02em; }
+.search { box-shadow: none; }
+.segmented button.on, .btn, .cat-primary, .date.on, .time.on, .person.on .avatar, .round-go { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+.cat-primary .cat-icon { background: var(--surface); }
+
+/* cards: white, soft border, small shadow */
+.card { box-shadow: var(--shadow); border-color: var(--border); }
+
+/* main recommendation: solid navy block (no gradients) */
+.route-hero, .route-hero.is-nurse {
+  background: var(--primary);
+  box-shadow: none;
+  border-radius: 28px;
+}
+.route-hero::after { display: none; }
+.route-icon { background: #fff; color: var(--primary); }
+@media (prefers-color-scheme: dark) { .route-hero, .route-hero.is-nurse { background: #2a338f; } .route-icon { color: #232c84; } }
+.route-hero .btn-white { color: var(--primary); }
+
+/* other options: all white, icon tells them apart */
+.alt, .alt-virtual_care, .alt-walk_in, .alt-pharmacist, .alt-call_811, .alt-family_doctor {
+  background: var(--surface); border: 1px solid var(--border);
+}
+.alt .tile { background: var(--primary-soft); }
+.alt-chevron { color: var(--primary); }
+
+/* booking actions in navy, not green */
+.btn-book-real, .btn-book-real:hover { background: var(--primary); border-color: var(--primary); filter: none; }
+.card-booked { border: 1px solid var(--border); }
+.badge { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 0 0.45rem; }
+.badge-real { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+.saved-gcal { color: var(--primary); }
+.smart-card { background: var(--surface); border: 1px dashed var(--primary); }
+
+/* open/closed: words carry meaning; colour stays calm */
+.open-badge.is-open { color: var(--primary); background: var(--primary-soft); }
+.open-badge.is-closed { color: var(--muted); background: var(--surface-2); }
+.open-badge.is-unknown { color: var(--muted); background: var(--surface-2); }
+.pill { background: var(--primary-soft); border-color: transparent; color: var(--primary); }
+.mode { background: var(--primary-soft); color: var(--primary); }
+.chip-link { border-style: solid; border-color: var(--border); color: var(--primary); }
+.btn-soft { background: var(--primary-soft); color: var(--primary); }
+.btn-soft.is-on { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+.warn { color: var(--warn); }
+
+/* bottom navigation like the reference: white bar, navy active */
+.bottom-nav { background: var(--surface); box-shadow: 0 -2px 20px rgba(27, 33, 64, 0.08); border: 1px solid var(--border); }
+.nav-btn { color: var(--muted); }
+.nav-btn.on { color: var(--primary); background: var(--primary-soft); }
+.fab { background: var(--primary); color: var(--primary-fg); border-color: var(--bg); }
+@media (prefers-color-scheme: dark) { .bottom-nav { background: var(--surface); } }
+
+/* onboarding: navy, white card */
+.onboard { background: var(--primary); }
+.onboard h1::after { color: #f5a524; }
+.onboard-deco::before { background: #f5a524; }
+.onboard-icons span { background: var(--primary-soft); }
+.onboard-arrow { background: #fff; color: var(--primary); }
+
+/* safety: red stays red */
+.flag { background: var(--surface); border: 1px solid #e7b3bb; }
+.flag-icon { background: #fdeef0; color: #b3001b; }
+.emergency-icon { color: #b3001b; }
