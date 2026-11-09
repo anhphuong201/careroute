@@ -94,6 +94,9 @@ const TZ: Record<ProvinceCode, string> = { AB: "America/Edmonton", BC: "America/
 
 const KIND_ICON: Record<string, string> = { pharmacy: "pill", walk_in: "clinic", urgent_care: "ambulance", emergency: "building", clinic: "steth", virtual: "video" };
 const ROUTE_ICON: Record<string, string> = { pharmacist: "pill", virtual_care: "video", walk_in: "clinic", call_811: "phone", registry: "doctor", family_doctor: "steth" };
+/** One accent colour per kind of care, used the same way everywhere (CSS: .acc-<name>). */
+const ROUTE_ACCENT: Record<string, string> = { pharmacist: "teal", virtual_care: "violet", walk_in: "sky", call_811: "orange", registry: "rose", family_doctor: "navy" };
+const KIND_ACCENT: Record<string, string> = { pharmacy: "teal", walk_in: "sky", clinic: "sky", urgent_care: "sky", emergency: "rose", virtual: "violet" };
 
 const DEMO: Record<ProvinceCode, HouseholdMember[]> = {
   AB: [
@@ -484,21 +487,19 @@ export default function CareRouteApp() {
               <p className="help small">{t.provinceNote}</p>
 
               <SectionHead title={t.categories} />
-              <div className="cat-scroll">
+              <div className="tile-row">
                 {(
                   [
-                    ["pill", t.catRenewal, t.exRenewal],
-                    ["lab", t.catLab, t.exLab],
-                    ["bandage", t.catSymptom, t.exMinor],
-                    ["video", t.catVirtual, t.catVirtualText],
-                    ["doctor", t.catDoctor, t.catDoctorText],
-                  ] as [string, string, string][]
-                ).map(([icon, label, prefill], i) => (
-                  <button key={label} className={`cat ${i === 0 ? "cat-primary" : ""}`} onClick={() => startSearch(prefill)}>
-                    <span className="cat-icon" aria-hidden>
-                      <I n={icon} size={20} />
-                    </span>
-                    {label}
+                    ["pill", t.catRenewal, t.exRenewal, "teal"],
+                    ["lab", t.catLab, t.exLab, "navy"],
+                    ["bandage", t.catSymptom, t.exMinor, "orange"],
+                    ["video", t.catVirtual, t.catVirtualText, "violet"],
+                    ["doctor", t.catDoctor, t.catDoctorText, "rose"],
+                  ] as [string, string, string, string][]
+                ).map(([icon, label, prefill, acc]) => (
+                  <button key={label} className={`big-tile acc-${acc}`} onClick={() => startSearch(prefill)}>
+                    <I n={icon} size={34} />
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
@@ -763,7 +764,7 @@ export default function CareRouteApp() {
                   const who = members.find((m) => m.id === h.memberId)?.displayName;
                   return (
                     <li key={h.id} className="card history-item">
-                      <span className={`tile ${h.route === "emergency" ? "tile-danger" : ""}`} aria-hidden>
+                      <span className={`tile ${h.route === "emergency" ? "tile-danger" : `tint-${ROUTE_ACCENT[h.route] ?? "navy"}`}`} aria-hidden>
                         <I n={h.route === "emergency" ? "siren" : ROUTE_ICON[h.route] ?? "info"} size={22} />
                       </span>
                       <div>
@@ -1299,7 +1300,7 @@ function Result(props: {
           <SourceInfo t={t} sources={heroSources} light />
         </div>
         <div className="row-center">
-          <span className="route-icon" aria-hidden>
+          <span className={`route-icon on-${ROUTE_ACCENT[r.rule.route] ?? "navy"}`} aria-hidden>
             <I n={ROUTE_ICON[r.rule.route] ?? "next"} size={24} />
           </span>
           <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
@@ -1325,11 +1326,7 @@ function Result(props: {
       {r.alternatives.length > 0 && (
         <>
           <SectionHead title={t.otherOptions} />
-          <ul className="list">
-            {r.alternatives.map((a) => (
-              <Alternative key={a.rule.rule_id} t={t} loc={loc} tz={tz} province={province} location={props.location} alt={a} rtl={rtl} lang={r.language} onChoose={props.onChoose} onHelper={props.onHelper} />
-            ))}
-          </ul>
+          <Alternatives t={t} loc={loc} tz={tz} province={province} location={props.location} alts={r.alternatives} rtl={rtl} lang={r.language} onChoose={props.onChoose} onHelper={props.onHelper} />
         </>
       )}
 
@@ -1369,86 +1366,95 @@ function Result(props: {
   );
 }
 
-function Alternative(props: {
+/**
+ * "Other options": a row of bold colour tiles (different look from the nearby-place list).
+ * Tapping a tile opens a panel with the full "If …" condition and that option's nearby places.
+ */
+function Alternatives(props: {
   t: Strings;
   loc: string;
   tz: string;
   province: ProvinceCode;
   location: { lat: number; lng: number } | null;
-  alt: RouteResult["alternatives"][number];
+  alts: RouteResult["alternatives"];
   rtl: boolean;
   lang: string;
   onChoose: (o: Option) => void;
   onHelper: (o: Option) => void;
 }) {
-  const { t, alt } = props;
-  const [places, setPlaces] = useState<{ facilities: Option[]; er_waits_source?: RouteResult["er_waits_source"]; location_needed: boolean } | null>(null);
-  const [open, setOpen] = useState(false);
+  const { t, alts } = props;
+  const [sel, setSel] = useState<number | null>(null);
+  const [places, setPlaces] = useState<Record<number, { facilities: Option[]; er_waits_source?: RouteResult["er_waits_source"]; location_needed: boolean }>>({});
   const [busy, setBusy] = useState(false);
-  const isCall = alt.rule.route === "call_811";
+  const alt = sel === null ? null : alts[sel];
 
-  async function toggle() {
-    if (open) return setOpen(false);
-    setOpen(true);
-    if (places || !alt.facility_kind) return;
+  async function pick(i: number) {
+    if (sel === i) return setSel(null);
+    setSel(i);
+    const a = alts[i];
+    if (places[i] || !a.facility_kind || a.rule.route === "call_811") return;
     setBusy(true);
     try {
       const res = await fetch("/api/facilities", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ province: props.province, kind: alt.facility_kind, location: props.location }),
+        body: JSON.stringify({ province: props.province, kind: a.facility_kind, location: props.location }),
       });
-      setPlaces(await res.json());
+      const j = await res.json();
+      setPlaces((p) => ({ ...p, [i]: j }));
     } finally {
       setBusy(false);
     }
   }
 
-  const head = (
-    <>
-      <span className="tile" aria-hidden>
-        <I n={ROUTE_ICON[alt.rule.route] ?? "next"} size={22} />
-      </span>
-      <span className="option-title">
-        <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
-        <span className="block alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
-          {alt.when}
-        </span>
-      </span>
-      <span className="alt-chevron" aria-hidden>
-        <I n={isCall ? "phone" : open ? "up" : "down"} />
-      </span>
-    </>
-  );
-
   return (
-    <li className={`card alt alt-${alt.rule.route}`}>
-      <div className="alt-head-row">
-        {isCall ? (
-          <a className="alt-head" href="tel:811" aria-label={`${t.call811}: ${alt.when}`}>
-            {head}
-          </a>
-        ) : alt.facility_kind ? (
-          <button className="alt-head" onClick={toggle} aria-expanded={open}>
-            {head}
+    <div className="alts">
+      <div className="tile-row" role="tablist" aria-label={t.otherOptions}>
+        {alts.map((a, i) => (
+          <button
+            key={a.rule.rule_id}
+            role="tab"
+            aria-selected={sel === i}
+            className={`big-tile acc-${ROUTE_ACCENT[a.rule.route] ?? "navy"} ${sel === i ? "is-selected" : ""}`}
+            onClick={() => pick(i)}
+          >
+            <I n={ROUTE_ICON[a.rule.route] ?? "next"} size={34} />
+            <span>{t.routeNames[a.rule.route] ?? a.rule.title}</span>
           </button>
-        ) : (
-          <a className="alt-head" href={alt.rule.source_url} target="_blank" rel="noreferrer">
-            {head}
-          </a>
-        )}
-        <SourceInfo t={t} sources={alt.rule.sources} />
+        ))}
       </div>
-      {open && busy && <p className="small muted">…</p>}
-      {open && places && (
-        <ul className="list nested">
-          {places.location_needed && <p className="small muted">{t.shareLocationForOptions}</p>}
-          {places.facilities.slice(0, 3).map((f) => (
-            <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places.er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
-          ))}
-        </ul>
+      {alt && (
+        <div className={`alt-panel acc-border-${ROUTE_ACCENT[alt.rule.route] ?? "navy"}`} role="tabpanel">
+          <div className="row-between">
+            <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
+            <SourceInfo t={t} sources={alt.rule.sources} />
+          </div>
+          <p className="alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
+            {alt.when}
+          </p>
+          {alt.rule.route === "call_811" ? (
+            <a className="btn" href="tel:811">
+              <I n="phone" /> {t.call811}
+            </a>
+          ) : !alt.facility_kind ? (
+            <a className="btn btn-soft" href={alt.rule.source_url} target="_blank" rel="noreferrer">
+              {t.website} <I n="ext" size={14} />
+            </a>
+          ) : busy && !places[sel!] ? (
+            <p className="small muted">…</p>
+          ) : (
+            places[sel!] && (
+              <ul className="list nested">
+                {places[sel!].location_needed && <p className="small muted">{t.shareLocationForOptions}</p>}
+                {places[sel!].facilities.slice(0, 3).map((f) => (
+                  <OptionCard key={f.id} t={t} loc={props.loc} tz={props.tz} f={f} waitsSource={places[sel!].er_waits_source} onChoose={() => props.onChoose(f)} onHelper={() => props.onHelper(f)} />
+                ))}
+              </ul>
+            )
+          )}
+        </div>
       )}
-    </li>
+    </div>
   );
 }
 
@@ -1501,7 +1507,7 @@ function DemoPlaceCard({ t, loc, tz, kind, onBook }: { t: Strings; loc: string; 
   return (
     <li className="card option demo-place">
       <div className="option-head">
-        <span className="tile" aria-hidden>
+        <span className={`tile tint-${KIND_ACCENT[kind] ?? "navy"}`} aria-hidden>
           <I n={KIND_ICON[kind] ?? "pill"} size={22} />
         </span>
         <span className="option-title">
@@ -1560,7 +1566,7 @@ function OptionCard({ t, loc, tz, f, waitsSource, onChoose, onHelper }: { t: Str
   return (
     <li className="card option">
       <div className="option-head">
-        <span className="tile" aria-hidden>
+        <span className={`tile tint-${KIND_ACCENT[f.kind] ?? "navy"}`} aria-hidden>
           <I n={KIND_ICON[f.kind] ?? "clinic"} size={22} />
         </span>
         <span className="option-title">

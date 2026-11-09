@@ -444,3 +444,73 @@ body { background: var(--bg); }
 .flag { background: var(--surface); border: 1px solid #e7b3bb; }
 .flag-icon { background: #fdeef0; color: #b3001b; }
 .emergency-icon { color: #b3001b; }
+
+/* ════════════════════════════════════════════════════════════════════
+   ACCENTS – navy stays the main colour; one accent per kind of care.
+   Tile colours are the darker shades so white text/icons stay ≥ 4.5:1.
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --acc-navy: #232c84;   --acc-navy-soft: #e7eaf7;
+  --acc-teal: #0f766e;   --acc-teal-soft: #dff5f1;
+  --acc-violet: #6d3fd6; --acc-violet-soft: #efe9fd;
+  --acc-sky: #1d5fd8;    --acc-sky-soft: #e4eefd;
+  --acc-orange: #c2410c; --acc-orange-soft: #fdeee4;
+  --acc-rose: #be185d;   --acc-rose-soft: #fce8f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --acc-navy-soft: #262e5c; --acc-teal-soft: #113a37; --acc-violet-soft: #2c2252; --acc-sky-soft: #142c55;
+    --acc-orange-soft: #3d2312; --acc-rose-soft: #3d1529;
+  }
+}
+.acc-navy { --acc: var(--acc-navy); }       .acc-teal { --acc: var(--acc-teal); }
+.acc-violet { --acc: var(--acc-violet); }   .acc-sky { --acc: var(--acc-sky); }
+.acc-orange { --acc: var(--acc-orange); }   .acc-rose { --acc: var(--acc-rose); }
+
+/* Big colour tiles (home categories + "Other options") */
+.tile-row { display: flex; gap: 0.7rem; overflow-x: auto; padding: 4px 2px 12px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.tile-row::-webkit-scrollbar { display: none; }
+.big-tile {
+  flex: none; scroll-snap-align: start; width: 112px; min-height: 118px; padding: 14px 10px 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border: 0; border-radius: 22px; background: var(--acc, var(--primary)); color: #fff; cursor: pointer;
+  font-weight: 700; font-size: 0.86rem; line-height: 1.2; text-align: center;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--acc, #232c84) 28%, transparent);
+  transition: transform 0.12s ease;
+}
+.big-tile .ic { width: 34px; height: 34px; }
+.big-tile:hover { transform: translateY(-2px); }
+.big-tile.is-selected { outline: 3px solid var(--fg); outline-offset: 3px; }
+.big-tile:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .big-tile { transition: none; } .big-tile:hover { transform: none; } }
+
+/* Panel under the selected option */
+.alt-panel { background: var(--surface); border-radius: 22px; padding: 1rem 1.1rem; margin: 0.2rem 0 0.8rem; border: 1px solid var(--border); border-top: 5px solid var(--acc-navy); box-shadow: var(--shadow); }
+.acc-border-teal { border-top-color: var(--acc-teal); }     .acc-border-violet { border-top-color: var(--acc-violet); }
+.acc-border-sky { border-top-color: var(--acc-sky); }       .acc-border-orange { border-top-color: var(--acc-orange); }
+.acc-border-rose { border-top-color: var(--acc-rose); }
+.alt-panel .alt-when { font-size: 1rem; margin: 0.4rem 0 0.6rem; }
+.alt-panel .nested .card { background: var(--surface-2); box-shadow: none; }
+
+/* Place cards: soft tinted icon tile per kind */
+.tint-navy { background: var(--acc-navy-soft) !important; color: var(--acc-navy) !important; }
+.tint-teal { background: var(--acc-teal-soft) !important; color: var(--acc-teal) !important; }
+.tint-violet { background: var(--acc-violet-soft) !important; color: var(--acc-violet) !important; }
+.tint-sky { background: var(--acc-sky-soft) !important; color: var(--acc-sky) !important; }
+.tint-orange { background: var(--acc-orange-soft) !important; color: var(--acc-orange) !important; }
+.tint-rose { background: var(--acc-rose-soft) !important; color: var(--acc-rose) !important; }
+@media (prefers-color-scheme: dark) {
+  .tint-teal { color: #5eead4 !important; } .tint-violet { color: #c4b5fd !important; } .tint-sky { color: #93c5fd !important; }
+  .tint-orange { color: #fdba74 !important; } .tint-rose { color: #f9a8d4 !important; } .tint-navy { color: #a9b3ff !important; }
+}
+
+/* Main card: navy with a soft accent blob (like the references) */
+.route-hero { position: relative; overflow: hidden; }
+.route-hero > * { position: relative; z-index: 1; }
+.route-hero::before { content: ""; position: absolute; right: -60px; top: -70px; width: 200px; height: 200px; border-radius: 46% 54% 58% 42%; background: rgba(255, 255, 255, 0.08); z-index: 0; }
+.route-hero .source-pop { z-index: 40; }
+.route-icon.on-teal { color: var(--acc-teal); } .route-icon.on-violet { color: var(--acc-violet); }
+.route-icon.on-sky { color: var(--acc-sky); }   .route-icon.on-orange { color: var(--acc-orange); }
+.route-icon.on-rose { color: var(--acc-rose); }
+.route-hero > .row-between { z-index: 3; }
+.alt-panel .nested .option-head { gap: 0.6rem; }
