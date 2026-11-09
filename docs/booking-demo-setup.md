@@ -35,6 +35,7 @@ Set these in Vercel (then redeploy):
 | `NEXT_PUBLIC_DEMO_CLINIC_NAME` | `Shoppers Drug Mart – Kensington (demo)` | Keep "(demo)" in the name if the DEMO tag is off |
 | `NEXT_PUBLIC_DEMO_CLINIC_ADDRESS` | `Demo location` | Shown under the name; no distance is shown for the demo |
 | `NEXT_PUBLIC_DEMO_CLINIC_HOURS` | `Mo-Fr 09:00-17:00; Sa 10:00-14:00; Su off` | Match your Cal.com availability |
+| `NEXT_PUBLIC_DEMO_CLINIC_LAT` / `_LNG` | `51.0386` / `-114.0973` | Map position used for the transit and Uber buttons after a demo booking |
 | `NEXT_PUBLIC_DEMO_BADGE` | `off` | Hides the purple DEMO tag – presentations only |
 | `NEXT_PUBLIC_DEMO_CLINIC` | `off` | Hides the demo clinic entirely (e.g. for real users) |
 

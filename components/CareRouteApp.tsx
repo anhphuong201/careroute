@@ -16,6 +16,7 @@ import { DEMO_CLINIC_DISPLAY } from "@/lib/demoClinicConfig";
 import { icsFor } from "@/lib/client/bookingHelper";
 import { FREE_WINDOWS, googleCalendarUrl } from "@/lib/client/suggest";
 import { tzLabel, zonedDate, zonedParts } from "@/lib/data/tz";
+import { arriveBy, transitArriveByUrl, uberRideUrl, type TravelPlace } from "@/lib/client/travel";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -146,6 +147,8 @@ export default function CareRouteApp() {
   const [helperFor, setHelperFor] = useState<Option | null>(null);
   const [smartOpen, setSmartOpen] = useState(false);
   const [gcalLink, setGcalLink] = useState<string | null>(null);
+  /** Where the confirmed appointment is (for transit / Uber links). */
+  const [bookedPlace, setBookedPlace] = useState<TravelPlace | null>(null);
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -285,6 +288,7 @@ export default function CareRouteApp() {
     if (!res.ok) return setScreen("error");
     const b = (await res.json()) as Booking;
     setBooking(b);
+    setBookedPlace(chosen.kind === "virtual" ? null : { name: chosen.name, address: chosen.address, city: chosen.city, lat: chosen.lat, lng: chosen.lng });
     record({ route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url, bookingCode: b.confirmation_code });
     setScreen("booked");
   }
@@ -302,6 +306,7 @@ export default function CareRouteApp() {
     };
     setBooking(real);
     setGcalLink(null);
+    setBookedPlace(f.kind === "virtual" ? null : { name: f.name, address: f.address, city: f.city, lat: f.lat, lng: f.lng });
     if (result)
       record({
         route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url,
@@ -324,6 +329,8 @@ export default function CareRouteApp() {
     };
     setBooking(b);
     setGcalLink(d.calendarLink === undefined ? null : d.calendarLink ?? "");
+    const demo = DEMO_CLINIC_DISPLAY;
+    setBookedPlace(demo.lat || /\d/.test(demo.address) ? { name: demo.name, address: demo.address, city: "", lat: demo.lat, lng: demo.lng } : null);
     if (result)
       record({ route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url, bookingCode: d.uid, bookingPlace: b.facility_name, bookingTime: d.start });
     setSmartOpen(false);
@@ -335,7 +342,14 @@ export default function CareRouteApp() {
       title: `${b.simulated ? "[SIMULATED] " : ""}Appointment – ${b.facility_name}`,
       start: new Date(b.slot),
       location: b.facility_address,
-      description: [result?.booking_note, b.confirmation_code ? `Confirmation: ${b.confirmation_code}` : "", "Bring your health card and medicine list."].filter(Boolean).join("\n"),
+      description: [
+        result?.booking_note,
+        b.confirmation_code ? `Confirmation: ${b.confirmation_code}` : "",
+        "Bring your health card and medicine list.",
+        bookedPlace ? `Transit (arrive by): ${transitArriveByUrl(bookedPlace, new Date(b.slot), TZ[province], locStatus === "on" ? location : null)}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
       uid: `${b.confirmation_code || b.slot}@careroute`,
     });
     const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
@@ -684,13 +698,23 @@ export default function CareRouteApp() {
                   <span className="muted">{booking.facility_address}</span>
                 </p>
                 <div className="stats">
-                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { timeZone: TZ[province], weekday: "short", month: "short", day: "numeric" })} label={t.selectDate} />
+                  <Stat icon="📅" value={new Date(booking.slot).toLocaleDateString(loc, { timeZone: TZ[province], weekday: "short", month: "short", day: "numeric" })} label={t.dateLabel} />
                   <Stat icon="🕒" value={`${new Date(booking.slot).toLocaleTimeString(loc, { timeZone: TZ[province], hour: "numeric", minute: "2-digit" })} ${tzLabel(TZ[province], loc, new Date(booking.slot))}`} label={t.time} />
                   {booking.confirmation_code && <Stat icon="#" value={booking.confirmation_code} label={t.confirmation} />}
                 </div>
                 <p>
                   <strong>{t.bring}:</strong> {booking.instructions}
                 </p>
+                {bookedPlace && (
+                  <GettingThere
+                    t={t}
+                    loc={loc}
+                    tz={TZ[province]}
+                    place={bookedPlace}
+                    appointment={new Date(booking.slot)}
+                    from={locStatus === "on" ? location : null}
+                  />
+                )}
                 {gcalLink !== null && (
                   <p className="saved-gcal">
                     ✅ {t.savedToGcal}
@@ -1425,6 +1449,49 @@ function Alternative(props: {
         </ul>
       )}
     </li>
+  );
+}
+
+/** After booking: transit (arrive-by) and Uber with time, start and destination filled in. */
+function GettingThere(props: { t: Strings; loc: string; tz: string; place: TravelPlace; appointment: Date; from: { lat: number; lng: number } | null }) {
+  const { t, loc, tz, place, appointment } = props;
+  const [uberAsk, setUberAsk] = useState(false);
+  const arrive = arriveBy(appointment);
+  const fmtT = (d: Date) => d.toLocaleTimeString(loc, { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const uber = uberRideUrl(place, props.from);
+  return (
+    <div className="getting-there">
+      <h2>🧭 {t.gettingThere}</h2>
+      <p className="small">
+        {t.arriveBy} <strong>{fmtT(arrive)}</strong> ({t.arriveEarlyNote}) · {place.name}
+      </p>
+      <div className="row">
+        <a className="btn-outline" href={transitArriveByUrl(place, appointment, tz, props.from)} target="_blank" rel="noreferrer">
+          🚌 {t.busSchedule}
+        </a>
+        {uber && (
+          <button className="btn-outline" onClick={() => setUberAsk(!uberAsk)} aria-expanded={uberAsk}>
+            🚗 {t.ride}
+          </button>
+        )}
+      </div>
+      <p className="small muted">{t.transitNote}</p>
+      {uberAsk && uber && (
+        <div className="confirm-box" role="dialog" aria-label={t.ride}>
+          <p className="small">
+            {t.rideConfirm} <strong>{place.name}</strong>. {t.rideTiming} <strong>{fmtT(arrive)}</strong>
+          </p>
+          <div className="row">
+            <a className="btn-outline" href={uber} target="_blank" rel="noreferrer" onClick={() => setUberAsk(false)}>
+              {t.openUber} ↗
+            </a>
+            <button className="btn-outline" onClick={() => setUberAsk(false)}>
+              {t.cancel}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

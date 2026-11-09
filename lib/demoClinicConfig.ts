@@ -13,4 +13,7 @@ export const DEMO_CLINIC_DISPLAY = {
   address: process.env.NEXT_PUBLIC_DEMO_CLINIC_ADDRESS || "Demo location (prototype)",
   hours: process.env.NEXT_PUBLIC_DEMO_CLINIC_HOURS || "Mo-Fr 09:00-17:00; Sa 10:00-14:00; Su off",
   badge: process.env.NEXT_PUBLIC_DEMO_BADGE !== "off",
+  /** Optional map position for transit/Uber after booking: NEXT_PUBLIC_DEMO_CLINIC_LAT / _LNG. */
+  lat: Number(process.env.NEXT_PUBLIC_DEMO_CLINIC_LAT) || null,
+  lng: Number(process.env.NEXT_PUBLIC_DEMO_CLINIC_LNG) || null,
 };
