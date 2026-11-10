@@ -10,6 +10,8 @@ export interface TravelPlace {
   city: string;
   lat: number | null;
   lng: number | null;
+  /** Demo only: the real place used as a stand-in destination (shown on screen). */
+  standIn?: string;
 }
 
 const hasStreet = (a: string) => /\d/.test(a.split(",")[0] ?? "");

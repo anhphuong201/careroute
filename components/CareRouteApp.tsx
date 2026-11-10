@@ -334,7 +334,13 @@ export default function CareRouteApp() {
     setBooking(b);
     setGcalLink(d.calendarLink === undefined ? null : d.calendarLink ?? "");
     const demo = DEMO_CLINIC_DISPLAY;
-    setBookedPlace(demo.lat || /\d/.test(demo.address) ? { name: demo.name, address: demo.address, city: "", lat: demo.lat, lng: demo.lng } : null);
+    if (demo.lat || /\d/.test(demo.address)) {
+      setBookedPlace({ name: demo.name, address: demo.address, city: "", lat: demo.lat, lng: demo.lng });
+    } else {
+      // No demo location configured: use the nearest real place from this search as a clearly labelled stand-in.
+      const near = result?.facilities.find((f) => f.kind !== "virtual" && Number.isFinite(f.lat));
+      setBookedPlace(near ? { name: near.name, address: near.address, city: near.city, lat: near.lat, lng: near.lng, standIn: fullAddress(near) ? `${near.name}, ${fullAddress(near)}` : near.name } : null);
+    }
     if (result)
       record({ route: result.rule.route, routeTitle: result.rule.title, reason: result.reason, sourceUrl: result.rule.source_url, bookingCode: d.uid, bookingPlace: b.facility_name, bookingTime: d.start });
     setSmartOpen(false);
@@ -733,6 +739,7 @@ export default function CareRouteApp() {
                 <button className="btn btn-soft" onClick={() => downloadCalendar(booking)}>
                   <I n="calPlus" /> {t.addToCalendar}
                 </button>
+                {gcalLink === null && (
                 <a
                   className="btn btn-ghost"
                   target="_blank"
@@ -746,6 +753,7 @@ export default function CareRouteApp() {
                 >
                   <I n="cal" /> {t.addGoogleCal} <I n="ext" size={14} />
                 </a>
+                )}
               </div>
               <SummaryCard t={t} member={member} onDownload={() => downloadSummary(member)} />
               <button className="btn btn-ghost" onClick={() => setScreen("result")}>
@@ -1469,8 +1477,13 @@ function GettingThere(props: { t: Strings; loc: string; tz: string; place: Trave
     <div className="getting-there">
       <h2><I n="nav" /> {t.gettingThere}</h2>
       <p className="small">
-        {t.arriveBy} <strong>{fmtT(arrive)}</strong> ({t.arriveEarlyNote}) · {place.name}
+        {t.arriveBy} <strong>{fmtT(arrive)}</strong> ({t.arriveEarlyNote}){place.standIn ? "" : ` · ${place.name}`}
       </p>
+      {place.standIn && (
+        <p className="small demo-note">
+          <I n="info" size={14} /> {t.standInNote} <strong>{place.standIn}</strong>
+        </p>
+      )}
       <div className="row">
         <a className="btn-outline" href={transitArriveByUrl(place, appointment, tz, props.from)} target="_blank" rel="noreferrer">
           <I n="bus" /> {t.busSchedule}

@@ -514,3 +514,5 @@ body { background: var(--bg); }
 .route-icon.on-rose { color: var(--acc-rose); }
 .route-hero > .row-between { z-index: 3; }
 .alt-panel .nested .option-head { gap: 0.6rem; }
+
+.demo-note { color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 0.4rem 0.6rem; }
