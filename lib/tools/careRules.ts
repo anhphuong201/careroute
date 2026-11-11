@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { PROVINCES, type ProvinceCode } from "../provinces";
 import type { CareRoute } from "../types";
+import { isFactId, type FactId } from "../facts";
 
 export type NeedType = "prescription_renewal" | "lab_followup" | "minor_symptom" | "find_doctor" | "other";
 
@@ -15,8 +16,12 @@ export interface CareRule {
   source_url: string;
   sources: { title: string; url: string }[];
   status: string;
+  /** Facts that can change whether this route fits (optional `required_facts` in front-matter). */
+  required_facts: FactId[];
   body: string;
 }
+
+const parseList = (v: string) => v.replace(/[[\]]/g, "").split(",").map((s) => s.trim()).filter(Boolean);
 
 /** Tiny parser for the front-matter shape used in /rules (not a general YAML parser). */
 export function parseRule(text: string): CareRule {
@@ -32,11 +37,15 @@ export function parseRule(text: string): CareRule {
     id: get("id"),
     province: get("province") as ProvinceCode,
     route: get("route") as CareRoute,
-    needs: get("needs").replace(/[[\]]/g, "").split(",").map((s) => s.trim()).filter(Boolean) as NeedType[],
+    needs: parseList(get("needs")) as NeedType[],
     title,
     source_url: get("source_url"),
     sources: sources.length ? sources : [{ title, url: get("source_url") }],
     status: get("status"),
+    required_facts: parseList(get("required_facts")).map((f) => {
+      if (!isFactId(f)) throw new Error(`unknown fact id in required_facts: ${f}`);
+      return f;
+    }),
     body: body.replace(/^#\s+.+\n/m, "").trim(),
   };
 }
@@ -83,6 +92,13 @@ export function searchCareRules(input: SearchCareRulesInput) {
   );
   return {
     province: input.province,
-    rules: relevant.map((r) => ({ rule_id: r.id, route: r.route, title: r.title, source_url: r.source_url, text: r.body })),
+    rules: relevant.map((r) => ({
+      rule_id: r.id,
+      route: r.route,
+      title: r.title,
+      source_url: r.source_url,
+      required_facts: r.required_facts,
+      text: r.body,
+    })),
   };
 }

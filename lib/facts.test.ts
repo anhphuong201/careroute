@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FACTS, FACT_IDS, isFactId, knownFacts, validateFactAnswer, validateFactAnswers } from "./facts";
+import { FACTS, FACT_IDS, isFactId, knownFacts, missingDecisiveFacts, validateFactAnswer, validateFactAnswers } from "./facts";
+import { getRule, parseRule } from "./tools/careRules";
 import { ageGroupFromMonths, monthsFromBirthDate, needsEscalation } from "./intake";
 
 describe("fact registry", () => {
@@ -46,5 +47,29 @@ describe("intake helpers", () => {
     expect(needsEscalation({ severity: "severe", trend: "worse" })).toBe(true);
     expect(needsEscalation({ severity: "severe", trend: "same" })).toBe(false);
     expect(needsEscalation({ severity: "moderate", trend: "worse" })).toBe(false);
+  });
+});
+
+describe("required_facts front-matter", () => {
+  const rule = (extra: string) => `---\nid: x-test\nprovince: AB\nroute: pharmacist\nneeds: [prescription_renewal]\n${extra}source_url: https://example.org\nstatus: draft\n---\n# Title\n- body\n`;
+  it("parses the optional list and defaults to none", () => {
+    expect(parseRule(rule("required_facts: [medication_name, runs_out_when]\n")).required_facts).toEqual(["medication_name", "runs_out_when"]);
+    expect(parseRule(rule("")).required_facts).toEqual([]);
+  });
+  it("rejects a fact id that is not in the registry", () => {
+    expect(() => parseRule(rule("required_facts: [shoe_size]\n"))).toThrow(/unknown fact id/);
+  });
+  it("the shipped rules list the expected decisive facts", () => {
+    for (const p of ["AB", "BC"] as const) {
+      const dir = p.toLowerCase();
+      expect(getRule(p, `${dir}-pharmacist`)!.required_facts).toEqual(expect.arrayContaining(["medication_name", "runs_out_when", "is_controlled_drug"]));
+      expect(getRule(p, `${dir}-family-doctor`)!.required_facts).toEqual(["lab_ordered_by", "lab_flagged_abnormal"]);
+      expect(getRule(p, `${dir}-811`)!.required_facts).toEqual([]);
+    }
+  });
+  it("only renewal/lab facts are enforced, and only for the matching need", () => {
+    const facts = getRule("AB", "ab-pharmacist")!.required_facts;
+    expect(missingDecisiveFacts(facts, "prescription_renewal", new Set(["medication_name"]))).toEqual(["runs_out_when", "is_controlled_drug"]);
+    expect(missingDecisiveFacts(facts, "minor_symptom", new Set())).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ id: bc-walk-in
 province: BC
 route: walk_in
 needs: [minor_symptom, lab_followup, prescription_renewal]
+required_facts: [lab_ordered_by, lab_flagged_abnormal, can_bear_weight_or_use, temperature_c, drinking_and_peeing_normally]
 source_url: https://www.healthlinkbc.ca/find-care/primary-care
 sources:
   - title: "Primary care – HealthLink BC"

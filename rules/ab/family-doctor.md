@@ -3,6 +3,7 @@ id: ab-family-doctor
 province: AB
 route: family_doctor
 needs: [prescription_renewal, lab_followup, minor_symptom]
+required_facts: [lab_ordered_by, lab_flagged_abnormal]
 source_url: https://albertafindaprovider.ca/
 sources:
   - title: "Alberta Find a Provider – Primary Care Alberta"

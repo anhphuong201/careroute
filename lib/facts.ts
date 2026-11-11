@@ -13,7 +13,12 @@ export interface FactDef {
   options: readonly string[];
   /** Max length for "text" facts. */
   maxLength?: number;
-  /** When the agent may ask it even if no rule lists it (situational facts). Shown to the model. */
+  /**
+   * Need types for which this fact DECIDES the route: if a chosen rule lists it and it is unknown,
+   * the server will not accept the route (it asks, or falls back to 811 after 2 questions).
+   */
+  decidesFor?: readonly string[];
+  /** Situational facts (no decidesFor): the agent asks only when this applies. Shown to the model. */
   relevantWhen?: string;
 }
 
@@ -31,6 +36,8 @@ export const FACT_IDS = [
 export type FactId = (typeof FACT_IDS)[number];
 
 const YES_NO = ["yes", "no", "not_sure"] as const;
+const RENEWAL = ["prescription_renewal"] as const;
+const LAB = ["lab_followup"] as const;
 
 export const FACTS: Record<FactId, FactDef> = {
   temperature_c: {
@@ -45,11 +52,16 @@ export const FACTS: Record<FactId, FactDef> = {
     options: YES_NO,
     relevantWhen: "a child or baby has fever, vomiting or diarrhea",
   },
-  medication_name: { id: "medication_name", type: "text", options: ["not_sure"], maxLength: 60 },
-  runs_out_when: { id: "runs_out_when", type: "choice", options: ["already_out", "within_3_days", "within_2_weeks", "later", "not_sure"] },
-  is_controlled_drug: { id: "is_controlled_drug", type: "choice", options: YES_NO },
-  lab_ordered_by: { id: "lab_ordered_by", type: "choice", options: ["family_doctor", "walk_in", "specialist", "not_sure"] },
-  lab_flagged_abnormal: { id: "lab_flagged_abnormal", type: "choice", options: YES_NO },
+  medication_name: { id: "medication_name", type: "text", options: ["not_sure"], maxLength: 60, decidesFor: RENEWAL },
+  runs_out_when: {
+    id: "runs_out_when",
+    type: "choice",
+    options: ["already_out", "within_3_days", "within_2_weeks", "later", "not_sure"],
+    decidesFor: RENEWAL,
+  },
+  is_controlled_drug: { id: "is_controlled_drug", type: "choice", options: YES_NO, decidesFor: RENEWAL },
+  lab_ordered_by: { id: "lab_ordered_by", type: "choice", options: ["family_doctor", "walk_in", "specialist", "not_sure"], decidesFor: LAB },
+  lab_flagged_abnormal: { id: "lab_flagged_abnormal", type: "choice", options: YES_NO, decidesFor: LAB },
   can_bear_weight_or_use: {
     id: "can_bear_weight_or_use",
     type: "choice",
@@ -100,9 +112,31 @@ export interface FollowUp {
 /** Facts given as answers are "known" even when the answer is "not sure". */
 export const knownFacts = (answers: FactAnswers, fromText: string[] = []) => new Set<string>([...Object.keys(answers), ...fromText.filter(isFactId)]);
 
-/** Plain lines for the model, e.g. "runs_out_when: within_3_days". */
+/** Plain lines for the model, e.g. "runs_out_when: within_3_days". Typed text is quoted and marked as the user's words. */
 export function factLines(answers: FactAnswers): string[] {
-  return (Object.entries(answers) as [FactId, string][]).map(([k, v]) => `${k}: ${v}`);
+  return (Object.entries(answers) as [FactId, string][]).map(([k, v]) =>
+    FACTS[k].type === "text" && v !== "not_sure" ? `${k}: ${JSON.stringify(v)} (typed by the user)` : `${k}: ${v}`,
+  );
 }
 
 export const MAX_FOLLOW_UPS = 2;
+
+/** Facts listed by a rule that decide the route for this need and are still unknown – in the rule's priority order. */
+export function missingDecisiveFacts(ruleFacts: readonly FactId[], needType: string, known: Set<string>): FactId[] {
+  return ruleFacts.filter((f) => FACTS[f].decidesFor?.includes(needType) && !known.has(f));
+}
+
+/** "yes" > "not_sure" > "no": when sources disagree, keep the most cautious answer. */
+export function mostCautious(...values: (string | undefined)[]): string | undefined {
+  for (const v of ["yes", "not_sure", "no"]) if (values.includes(v)) return v;
+  return values.find((v) => v !== undefined);
+}
+
+/** A controlled (or possibly controlled) medicine can never be renewed by a pharmacist here. */
+export const controlledOrUnsure = (answers: FactAnswers) => answers.is_controlled_drug === "yes" || answers.is_controlled_drug === "not_sure";
+
+/** Extra words for the red-flag screen from structured answers. Can only ADD urgency. */
+export function redFlagHints(answers: FactAnswers): string {
+  const t = answers.temperature_c;
+  return t && t !== "below_38" && t !== "not_sure" ? "fever" : "";
+}

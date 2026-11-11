@@ -3,6 +3,7 @@ id: bc-virtual-care
 province: BC
 route: virtual_care
 needs: [lab_followup, minor_symptom]
+required_facts: [medication_name, is_controlled_drug, lab_flagged_abnormal]
 source_url: https://www.healthlinkbc.ca/find-care/healthlink-bc-8-1-1-services/physician-services-healthlink-bc
 sources:
   - title: "Physician services at HealthLink BC"

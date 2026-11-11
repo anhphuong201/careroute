@@ -3,6 +3,7 @@ id: bc-pharmacist
 province: BC
 route: pharmacist
 needs: [prescription_renewal, minor_symptom]
+required_facts: [medication_name, runs_out_when, is_controlled_drug, could_be_pregnant]
 source_url: https://www.healthlinkbc.ca/find-care/pharmacy-services-bc
 sources:
   - title: "Pharmacy services in B.C. – HealthLink BC"
