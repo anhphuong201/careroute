@@ -40,7 +40,14 @@ describe("runAgent – safety gates", () => {
   it("stops before any model call when the raw text has a red flag", async () => {
     const { client, requests } = fake([]);
     const r = await runAgent({ ...base, text: "I have chest pain" }, client);
-    expect(r).toEqual({ type: "emergency", action: "call_911", stage: "input", debug: NO_DEBUG });
+    expect(r).toEqual({ type: "emergency", action: "call_911", stage: "input", language: "en", debug: NO_DEBUG });
+    expect(requests).toHaveLength(0);
+  });
+
+  it("tells the emergency screen the language the person wrote in (no model call)", async () => {
+    const { client, requests } = fake([]);
+    const r = await runAgent({ ...base, text: "أعاني من ألم في الصدر" }, client);
+    expect(r).toMatchObject({ type: "emergency", action: "call_911", stage: "input", language: "ar" });
     expect(requests).toHaveLength(0);
   });
 
@@ -56,7 +63,7 @@ describe("runAgent – safety gates", () => {
       [{ name: "record_need", input: { detected_language: "ko", need_summary_en: "My father has chest pain and is sweating.", need_type: "minor_symptom", medication_mentioned: "" } }],
     ]);
     const r = await runAgent({ ...base, text: "아버지가 가슴이 아파요" }, client);
-    expect(r).toEqual({ type: "emergency", action: "call_911", stage: "translation", debug: NO_DEBUG });
+    expect(r).toEqual({ type: "emergency", action: "call_911", stage: "translation", language: "ko", debug: NO_DEBUG });
   });
 });
 

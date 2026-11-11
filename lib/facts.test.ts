@@ -102,7 +102,7 @@ describe("'call 9-1-1 if it gets worse' in every red-flag language", () => {
     const { call911Line } = await import("./i18n");
     for (const l of ["en", "fr", "es", "zh", "zh-Hant", "zh-TW", "vi", "pa", "tl", "ar", "fr-CA"]) {
       const line = call911Line(l);
-      expect(line, l).toContain("⁦9-1-1⁩");
+      expect(line, l).toContain("\u20669\u20111\u20111\u2069"); // isolated, non-breaking
     }
     expect(call911Line("zh-TW")).not.toBe(call911Line("zh"));
     expect(call911Line("ko")).toBeUndefined(); // UI-language line is still shown

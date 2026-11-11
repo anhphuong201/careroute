@@ -10,6 +10,7 @@
  */
 import { checkRedFlags, mentionsFever, type RedFlagAction, type RedFlagCategory } from "../safety/redFlags";
 import { PROVINCES, type ProvinceCode } from "../provinces";
+import { detectLanguage } from "../safety/language";
 import { getRule, searchCareRules, type NeedType } from "../tools/careRules";
 import { checkErWaits, findFacilities, type Facility, type FacilityKind } from "../tools/facilities";
 import { lookupMedication } from "../tools/medication";
@@ -126,7 +127,15 @@ export type RouteResult = {
 };
 
 export type AgentResult =
-  | { type: "emergency"; action: RedFlagAction; stage: "input" | "translation"; debug: AgentDebug }
+  | {
+      type: "emergency";
+      action: RedFlagAction;
+      stage: "input" | "translation";
+      /** Language the person wrote in (rule-based guess at the input stage, the model's at the translation stage), so the
+       *  emergency screen can speak it. Absent when unsure. */
+      language?: string;
+      debug: AgentDebug;
+    }
   | {
       type: "clarify";
       fact_id: FactId | null;
@@ -182,7 +191,10 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
 
   // ── Gate 1: hard-coded rules on the raw input (+ tap answers that can only ADD urgency). No model call if this fires.
   const flags = checkRedFlags({ text: [text, redFlagHints(facts)].join("\n"), checklist: input.checklist, ageMonths: input.ageMonths });
-  if (flags.triggered) return { type: "emergency", action: flags.action, stage: "input", debug: debugFor(null) };
+  if (flags.triggered) {
+    const language = detectLanguage(text) ?? undefined;
+    return { type: "emergency", action: flags.action, stage: "input", ...(language ? { language } : {}), debug: debugFor(null) };
+  }
   if (!text.trim()) return { type: "clarify", fact_id: null, likely_route: null, language: "en", debug: debugFor(null) };
   const llm = injected ?? defaultLlm(); // created only after gate 1, so emergencies work without an API key
 
@@ -386,7 +398,7 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           }
           // ── Gate 2: same rules on the model's English restatement. Can only ADD a red flag.
           const again = checkRedFlags({ text: [need.summary, redFlagHints(facts)].join("\n"), ageMonths: input.ageMonths });
-          if (again.triggered) return { type: "emergency", action: again.action, stage: "translation", debug: debugFor(null) };
+          if (again.triggered) return { type: "emergency", action: again.action, stage: "translation", language: need.language, debug: debugFor(null) };
           // New / minor symptoms need severity, trend and duration (they can change the route). Renewals and labs don't.
           const lacking = need.type === "minor_symptom" ? missingIntake(intake) : [];
           if (lacking.length) return { type: "clarify", fact_id: null, likely_route: null, language: lang(), debug: debugFor(null), intake_needed: lacking };

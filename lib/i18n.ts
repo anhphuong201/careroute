@@ -322,6 +322,9 @@ const en = {
   pharmacistIfNotControlled: "If the pharmacist confirms it isn't a controlled medicine, they may be able to renew it.",
   intakeNeededTitle: "Three quick taps for symptoms",
   intakeNeededHelp: "For symptoms, we need how bad it is, whether it is changing, and since when. They decide where to go.",
+  changePerson: "Change",
+  savedProfileNote: "Saved details are used – we won't ask them again.",
+  familyDoctorShort: { yes: "has a family doctor", no: "no family doctor", hard_to_access: "family doctor hard to reach" } as Record<string, string>,
   routeNames: {
     pharmacist: "See a pharmacist",
     virtual_care: "Virtual care (phone or video)",
@@ -651,6 +654,9 @@ const fr: typeof en = {
   pharmacistIfNotControlled: "Si le pharmacien confirme que ce n'est pas un médicament contrôlé, il pourra peut-être le renouveler.",
   intakeNeededTitle: "Trois petites réponses pour les symptômes",
   intakeNeededHelp: "Pour des symptômes, nous avons besoin de la gravité, de l'évolution et de la durée. Elles décident où aller.",
+  changePerson: "Changer",
+  savedProfileNote: "Les détails enregistrés sont utilisés – nous ne les redemanderons pas.",
+  familyDoctorShort: { yes: "a un médecin de famille", no: "pas de médecin de famille", hard_to_access: "médecin de famille difficile à joindre" },
   routeNames: {
     pharmacist: "Voir un pharmacien",
     virtual_care: "Soins virtuels (téléphone ou vidéo)",
@@ -686,6 +692,103 @@ export function call911Line(language: string): string | undefined {
   const l = language.toLowerCase();
   const line = l.startsWith("zh") ? CALL_911_IF_WORSE[/hant|tw|hk|mo/.test(l) ? "zh-hant" : "zh"] : CALL_911_IF_WORSE[l.split("-")[0]];
   // Keep "9-1-1" left-to-right inside right-to-left text (otherwise Arabic shows "1-1-9").
-  return line?.replace("9-1-1", "\u20669-1-1\u2069");
+  return line && ltrNumbers(line);
 }
 export type Strings = typeof en;
+
+export interface EmergencyText {
+  title: string;
+  body911: string;
+  body988: string;
+  body811: string;
+  call911: string;
+  call988: string;
+  call811: string;
+}
+
+/**
+ * Emergency screen in the language the person wrote in (detected without AI, see lib/safety/language.ts).
+ * Canada's numbers stay 9-1-1 / 9-8-8 / 8-1-1 in every language.
+ * TODO: native speakers must review every translation except en/fr before launch.
+ */
+export const EMERGENCY_TEXT: Record<string, EmergencyText> = {
+  es: {
+    title: "Busque ayuda ahora",
+    body911: "Esto puede ser una emergencia. Llame al 9-1-1 o vaya a la sala de emergencias más cercana. No maneje usted mismo.",
+    body988: "No está solo. Llame o envíe un mensaje de texto al 9-8-8 en cualquier momento para hablar con alguien. Si está en peligro ahora, llame al 9-1-1.",
+    body811: "Llame al 8-1-1 ahora para hablar con una enfermera. Si el bebé está muy somnoliento, cuesta despertarlo o tiene dificultad para respirar, llame al 9-1-1.",
+    call911: "Llame al 9-1-1 ahora",
+    call988: "Llame o envíe un texto al 9-8-8",
+    call811: "Llame al 8-1-1 ahora",
+  },
+  zh: {
+    title: "立即求助",
+    body911: "这可能是紧急情况。请拨打 9-1-1 或前往最近的急诊室。不要自己开车。",
+    body988: "你并不孤单。随时拨打或发短信至 9-8-8，与人交谈。如果你现在有危险，请拨打 9-1-1。",
+    body811: "请立即拨打 8-1-1 与护士通话。如果婴儿非常嗜睡、难以叫醒或呼吸困难，请拨打 9-1-1。",
+    call911: "立即拨打 9-1-1",
+    call988: "拨打或发短信至 9-8-8",
+    call811: "立即拨打 8-1-1",
+  },
+  "zh-hant": {
+    title: "立即求助",
+    body911: "這可能是緊急情況。請撥打 9-1-1 或前往最近的急診室。不要自己開車。",
+    body988: "你並不孤單。隨時撥打或傳短訊至 9-8-8，與人交談。如果你現在有危險，請撥打 9-1-1。",
+    body811: "請立即撥打 8-1-1 與護士通話。如果嬰兒非常嗜睡、難以叫醒或呼吸困難，請撥打 9-1-1。",
+    call911: "立即撥打 9-1-1",
+    call988: "撥打或傳短訊至 9-8-8",
+    call811: "立即撥打 8-1-1",
+  },
+  vi: {
+    title: "Hãy tìm trợ giúp ngay",
+    body911: "Đây có thể là trường hợp khẩn cấp. Hãy gọi 9-1-1 hoặc đến phòng cấp cứu gần nhất. Đừng tự lái xe.",
+    body988: "Bạn không đơn độc. Hãy gọi hoặc nhắn tin đến 9-8-8 bất cứ lúc nào để nói chuyện với ai đó. Nếu bạn đang gặp nguy hiểm, hãy gọi 9-1-1.",
+    body811: "Hãy gọi 8-1-1 ngay để nói chuyện với y tá. Nếu em bé rất buồn ngủ, khó đánh thức hoặc khó thở, hãy gọi 9-1-1.",
+    call911: "Gọi 9-1-1 ngay",
+    call988: "Gọi hoặc nhắn tin 9-8-8",
+    call811: "Gọi 8-1-1 ngay",
+  },
+  pa: {
+    title: "ਹੁਣੇ ਮਦਦ ਲਓ",
+    body911: "ਇਹ ਐਮਰਜੈਂਸੀ ਹੋ ਸਕਦੀ ਹੈ। 9-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ ਜਾਂ ਨੇੜਲੇ ਐਮਰਜੈਂਸੀ ਵਿਭਾਗ ਵਿੱਚ ਜਾਓ। ਆਪ ਗੱਡੀ ਨਾ ਚਲਾਓ।",
+    body988: "ਤੁਸੀਂ ਇਕੱਲੇ ਨਹੀਂ ਹੋ। ਕਿਸੇ ਨਾਲ ਗੱਲ ਕਰਨ ਲਈ ਕਦੇ ਵੀ 9-8-8 'ਤੇ ਫ਼ੋਨ ਜਾਂ ਟੈਕਸਟ ਕਰੋ। ਜੇ ਤੁਸੀਂ ਹੁਣ ਖ਼ਤਰੇ ਵਿੱਚ ਹੋ, ਤਾਂ 9-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ।",
+    body811: "ਨਰਸ ਨਾਲ ਗੱਲ ਕਰਨ ਲਈ ਹੁਣੇ 8-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ। ਜੇ ਬੱਚਾ ਬਹੁਤ ਸੁਸਤ ਹੈ, ਜਗਾਉਣਾ ਔਖਾ ਹੈ, ਜਾਂ ਸਾਹ ਲੈਣ ਵਿੱਚ ਤਕਲੀਫ਼ ਹੈ, ਤਾਂ 9-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ।",
+    call911: "ਹੁਣੇ 9-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ",
+    call988: "9-8-8 'ਤੇ ਫ਼ੋਨ ਜਾਂ ਟੈਕਸਟ ਕਰੋ",
+    call811: "ਹੁਣੇ 8-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ",
+  },
+  tl: {
+    title: "Humingi ng tulong ngayon",
+    body911: "Maaaring emergency ito. Tumawag sa 9-1-1 o pumunta sa pinakamalapit na emergency department. Huwag magmaneho nang mag-isa.",
+    body988: "Hindi ka nag-iisa. Tumawag o mag-text sa 9-8-8 anumang oras para makausap ang isang tao. Kung nasa panganib ka ngayon, tumawag sa 9-1-1.",
+    body811: "Tumawag sa 8-1-1 ngayon para makausap ang isang nurse. Kung ang sanggol ay sobrang antukin, mahirap gisingin, o hirap huminga, tumawag sa 9-1-1.",
+    call911: "Tumawag sa 9-1-1 ngayon",
+    call988: "Tumawag o mag-text sa 9-8-8",
+    call811: "Tumawag sa 8-1-1 ngayon",
+  },
+  ar: {
+    title: "اطلب المساعدة الآن",
+    body911: "قد تكون هذه حالة طارئة. اتصل بالرقم 9-1-1 أو اذهب إلى أقرب قسم طوارئ. لا تقد السيارة بنفسك.",
+    body988: "لست وحدك. اتصل أو أرسل رسالة نصية إلى 9-8-8 في أي وقت للتحدث مع شخص ما. إذا كنت في خطر الآن، اتصل بالرقم 9-1-1.",
+    body811: "اتصل بالرقم 8-1-1 الآن للتحدث مع ممرضة. إذا كان الطفل نائمًا جدًا أو يصعب إيقاظه أو يجد صعوبة في التنفس، اتصل بالرقم 9-1-1.",
+    call911: "اتصل بالرقم 9-1-1 الآن",
+    call988: "اتصل أو أرسل رسالة إلى 9-8-8",
+    call811: "اتصل بالرقم 8-1-1 الآن",
+  },
+};
+
+/** Keep phone numbers like 9-1-1 left-to-right inside right-to-left text (Arabic otherwise shows "1-1-9"). */
+export const ltrNumbers = (s: string) =>
+  // isolate left-to-right, and use non-breaking hyphens so "9-1-1" never wraps across lines
+  s.replace(/\d(?:-\d)+/g, (m) => `\u2066${m.replace(/-/g, "\u2011")}\u2069`);
+
+/** Emergency text for a detected language code, or null to use the UI language. en/fr come from STRINGS. */
+export function emergencyText(language: string | undefined): EmergencyText | null {
+  if (!language) return null;
+  const l = language.toLowerCase();
+  const key = l.startsWith("zh") ? (/hant|tw|hk|mo/.test(l) ? "zh-hant" : "zh") : l.split("-")[0];
+  const s = key === "en" || key === "fr" ? STRINGS[key] : null;
+  if (s)
+    return { title: s.emergencyTitle, body911: s.emergency911Body, body988: s.emergency988Body, body811: s.emergency811Body, call911: s.call911, call988: s.call988, call811: s.call811 };
+  return EMERGENCY_TEXT[key] ?? null;
+}
