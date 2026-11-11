@@ -62,14 +62,17 @@ describe("required_facts front-matter", () => {
   it("the shipped rules list the expected decisive facts", () => {
     for (const p of ["AB", "BC"] as const) {
       const dir = p.toLowerCase();
-      expect(getRule(p, `${dir}-pharmacist`)!.required_facts).toEqual(expect.arrayContaining(["medication_name", "runs_out_when", "is_controlled_drug"]));
+      expect(getRule(p, `${dir}-pharmacist`)!.required_facts).toEqual(expect.arrayContaining(["runs_out_when", "is_controlled_drug"]));
+      expect(getRule(p, `${dir}-pharmacist`)!.required_facts).not.toContain("medication_name");
+      expect(getRule(p, `${dir}-walk-in`)!.required_facts).toEqual([]); // the catch-all route
       expect(getRule(p, `${dir}-family-doctor`)!.required_facts).toEqual(["lab_ordered_by", "lab_flagged_abnormal"]);
       expect(getRule(p, `${dir}-811`)!.required_facts).toEqual([]);
     }
   });
   it("only renewal/lab facts are enforced, and only for the matching need", () => {
     const facts = getRule("AB", "ab-pharmacist")!.required_facts;
-    expect(missingDecisiveFacts(facts, "prescription_renewal", new Set(["medication_name"]))).toEqual(["runs_out_when", "is_controlled_drug"]);
+    expect(missingDecisiveFacts(facts, "prescription_renewal", new Set())).toEqual(["runs_out_when", "is_controlled_drug"]);
+    expect(missingDecisiveFacts(["medication_name", "temperature_c"], "prescription_renewal", new Set())).toEqual([]);
     expect(missingDecisiveFacts(facts, "minor_symptom", new Set())).toEqual([]);
   });
 });
@@ -91,5 +94,17 @@ describe("en/fr strings for every follow-up and intake answer", () => {
       for (const v of intake.HIGHER_RISK) expect(t.higherRisks[v]).toBeTruthy();
       for (const v of intake.PREFERRED_MODES) expect(t.preferredModes[v]).toBeTruthy();
     }
+  });
+});
+
+describe("'call 9-1-1 if it gets worse' in every red-flag language", () => {
+  it("has a line for en, fr, es, zh (both scripts), vi, pa, tl, ar, each with an isolated 9-1-1", async () => {
+    const { call911Line } = await import("./i18n");
+    for (const l of ["en", "fr", "es", "zh", "zh-Hant", "zh-TW", "vi", "pa", "tl", "ar", "fr-CA"]) {
+      const line = call911Line(l);
+      expect(line, l).toContain("⁦9-1-1⁩");
+    }
+    expect(call911Line("zh-TW")).not.toBe(call911Line("zh"));
+    expect(call911Line("ko")).toBeUndefined(); // UI-language line is still shown
   });
 });

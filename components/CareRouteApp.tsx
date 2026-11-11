@@ -2,7 +2,7 @@
 
 import { I } from "@/components/Icon";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { STRINGS, type Lang, type Strings } from "@/lib/i18n";
+import { STRINGS, call911Line, type Lang, type Strings } from "@/lib/i18n";
 import { ALL_REGIONS, PROVINCES, isEnabledProvince, type ProvinceCode } from "@/lib/provinces";
 import { CITIES } from "@/lib/cities";
 import { storage } from "@/lib/client/storage";
@@ -20,7 +20,7 @@ import { tzLabel, zonedDate, zonedParts } from "@/lib/data/tz";
 import { arriveBy, transitArriveByUrl, uberRideUrl, type TravelPlace } from "@/lib/client/travel";
 import {
   COVERAGES, DURATIONS, HIGHER_RISK, PREFERRED_MODES, SEVERITIES, TRENDS,
-  ageGroupFromMonths, monthsFromBirthDate, type CoreIntake,
+  ageGroupFromMonths, missingIntake, monthsFromBirthDate, type CoreIntake,
 } from "@/lib/intake";
 import { FACTS, type FactAnswers, type FactId, type FollowUp } from "@/lib/facts";
 
@@ -162,6 +162,8 @@ export default function CareRouteApp() {
   const [pending, setPending] = useState<FollowUp | null>(null);
   /** Profile questions are shown once: when this search started without them (stays open while answering). */
   const [askProfile, setAskProfile] = useState(false);
+  /** Set when the server says this is a symptom request: severity, trend and duration become required. */
+  const [intakeRequired, setIntakeRequired] = useState(false);
   const [clarifyA, setClarifyA] = useState("");
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<Option | null>(null);
@@ -270,6 +272,7 @@ export default function CareRouteApp() {
     setFollowUps([]);
     setPending(null);
     setAskProfile(!member.coverage);
+    setIntakeRequired(false);
     setResult(null);
     setBooking(null);
     setChosen(null);
@@ -302,6 +305,10 @@ export default function CareRouteApp() {
         record({ route: data.rule.route, routeTitle: data.rule.title, reason: data.reason, sourceUrl: data.rule.source_url, language: data.language });
         setScreen("result");
       } else if (data.type === "clarify") {
+        if (data.intake_needed?.length) {
+          setIntakeRequired(true);
+          return setScreen("need");
+        }
         if (!data.fact_id) return setScreen("need");
         setPending({ fact_id: data.fact_id, likely_route: data.likely_route ?? "call_811" });
         setClarifyA("");
@@ -674,6 +681,12 @@ export default function CareRouteApp() {
                   <AgeInput t={t} m={member} onChange={updateMember} />
                 </>
               )}
+              {intakeRequired && missingIntake(intake).length > 0 && (
+                <div className="card notice" role="status">
+                  <p className="label">{t.intakeNeededTitle}</p>
+                  <p className="help small">{t.intakeNeededHelp}</p>
+                </div>
+              )}
               <TapRow label={t.severityLabel} values={SEVERITIES} labels={t.severities} value={intake.severity} onPick={(v) => setIntake({ ...intake, severity: v })} />
               <TapRow label={t.trendLabel} values={TRENDS} labels={t.trends} value={intake.trend} onPick={(v) => setIntake({ ...intake, trend: v })} />
               <TapRow label={t.howLong} values={DURATIONS} labels={t.durationBuckets} value={intake.duration} onPick={(v) => setIntake({ ...intake, duration: v })} />
@@ -697,7 +710,7 @@ export default function CareRouteApp() {
                   <option key={c.name}>{c.name}</option>
                 ))}
               </select>
-              <button className="btn" disabled={!text.trim()} onClick={() => submit()}>
+              <button className="btn" disabled={!text.trim() || (intakeRequired && missingIntake(intake).length > 0)} onClick={() => submit()}>
                 {t.findCare} <I n="next" />
               </button>
             </section>
@@ -1461,15 +1474,13 @@ function Result(props: {
           </span>
           <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
         </div>
-        {r.escalated ? (
+        {r.fixed_reason ? (
           <>
-            <p className="route-why-label">{t.severeWorseTitle}</p>
-            <p className="route-reason">{t.severeWorseBody}</p>
+            <p className="route-why-label">{t.fixedReasonTitles[r.fixed_reason]}</p>
+            <p className="route-reason">{t.fixedReasons[r.fixed_reason]}</p>
           </>
         ) : r.no_guideline && !r.reason ? (
-          <p className="route-reason">
-            {r.fallback_reason === "missing_facts" ? t.missingFactsBody : r.fallback_reason === "controlled_drug" ? t.controlledBody : t.noGuidelineBody}
-          </p>
+          <p className="route-reason">{r.fallback_reason === "missing_facts" ? t.missingFactsBody : t.noGuidelineBody}</p>
         ) : (
           <>
             <p className="route-why-label">{t.why}</p>
@@ -1486,9 +1497,23 @@ function Result(props: {
         {action}
       </div>
 
+      {r.dont_stop_medicine && (
+        <p className="safety-line">
+          <I n="alert" /> {t.dontStopMedicine}
+        </p>
+      )}
       {r.call_911_if_worse && (
         <a className="safety-line" href="tel:911">
-          <I n="phone" /> {t.call911IfWorse}
+          <I n="phone" />
+          <span>
+            {t.call911IfWorse}
+            {/* Also in the language the person wrote in, when it differs (safety text, all red-flag languages). */}
+            {call911Line(r.language) && call911Line(r.language) !== t.call911IfWorse && (
+              <span className="block" lang={r.language} dir={rtl ? "rtl" : "auto"}>
+                {call911Line(r.language)}
+              </span>
+            )}
+          </span>
         </a>
       )}
       {(props.coverage === "waiting_for_coverage" || props.coverage === "no_coverage") && r.rule.route !== "call_811" && (
@@ -1603,10 +1628,14 @@ function Alternatives(props: {
             <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
             <SourceInfo t={t} sources={alt.rule.sources} />
           </div>
-          {alt.when && (
-            <p className="alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
-              {alt.when}
-            </p>
+          {alt.note === "pharmacist_if_not_controlled" ? (
+            <p className="alt-when">{t.pharmacistIfNotControlled}</p>
+          ) : (
+            alt.when && (
+              <p className="alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
+                {alt.when}
+              </p>
+            )
           )}
           {alt.rule.route === "call_811" ? (
             <a className="btn" href="tel:811">

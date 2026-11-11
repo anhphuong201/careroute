@@ -26,6 +26,7 @@ Rule of thumb for the intake: **ask a question only if its answer can change the
 User ─► who needs care (exact age: birth date, else months under 2 / years) + family doctor
      ─► safety checklist (tap = emergency screen, no AI)
      ─► one screen: own words + severity + trend + how long (+ coverage / higher-risk / preferred mode, asked once)
+        (severity/trend/duration are required for new or minor symptoms – the server asks for them – optional for renewals and labs)
      ─► /api/agent  (every structured field is checked against an allow-list)
           1. checkRedFlags(raw text + tap answers, checklist, exact ageMonths)   rules, not AI ── match → 911 / 988 / 811
           2. AI → record_need (English restatement + facts already stated)
@@ -35,13 +36,17 @@ User ─► who needs care (exact age: birth date, else months under 2 / years) 
                   The app shows the registry's question (en/fr) as tap chips with "Not sure"; the answer is re-sent as a field.
           4. AI → present_route → server checks: rule really retrieved + word-for-word quote (else 811),
                                    decisive facts known (else ask; after 2 questions → 811),
-                                   controlled drug (yes / not sure) → never a pharmacist renewal,
+                                   under 18 + fever mentioned → temperature asked (code); 40 °C+ or not drinking/peeing → care today,
+                                   renewal: controlled yes / not sure → virtual care or walk-in, never the pharmacist as main route
+                                     (not sure → pharmacist as an "if it isn't controlled" option); yes + already out → walk-in today,
+                                     "don't stop suddenly"; still unknown after 2 questions = not sure (no 811),
                                    severe AND getting worse → walk-in/urgent care + "call 9-1-1 if it gets worse" (not AI),
                                    preferred mode only re-orders the alternatives
      ─► user taps "Choose" → approval dialog → /api/book (mock, labelled SIMULATED)
      ─► /api/summary → one-page PDF (FHIR IPS layout) from /data/personas
 ```
-- **Follow-up facts** live in one typed registry (`lib/facts.ts`): `temperature_c`, `drinking_and_peeing_normally`, `medication_name`, `runs_out_when`, `is_controlled_drug`, `lab_ordered_by`, `lab_flagged_abnormal`, `can_bear_weight_or_use`, `could_be_pregnant`. Rules opt in with `required_facts: [...]` in their front-matter. Renewal and lab facts are enforced by the server; the others are situational and asked only when they apply.
+- **Follow-up facts** live in one typed registry (`lib/facts.ts`): `temperature_c`, `drinking_and_peeing_normally`, `medication_name`, `runs_out_when`, `is_controlled_drug`, `lab_ordered_by`, `lab_flagged_abnormal`, `can_bear_weight_or_use`, `could_be_pregnant`. Rules opt in with `required_facts: [...]` in their front-matter. Only route facts are enforced by the server: `runs_out_when` + `is_controlled_drug` for renewals (`medication_name` is optional) and `lab_ordered_by` + `lab_flagged_abnormal` for labs. The walk-in rule (the catch-all) lists none. `temperature_c` and `drinking_and_peeing_normally` are urgency checks, not route facts; weight-bearing and pregnancy are left to the AI.
+- "Call 9-1-1 if it gets worse" is shown in the UI language and in the language the person wrote in (all 8 red-flag languages; non-en/fr translations still need native review). Other fixed texts fall back to English.
 - Structured facts, intake and coverage go into the model's turn as plain lines **outside** `<user_request>`. Without coverage, the agent is told to mention cost and the result shows a cost note.
 - Answers can only add urgency: a fever answer feeds the red-flag rules, and for `is_controlled_drug` the most cautious answer wins (the person's, a drug-database "controlled" schedule, or the model reading "yes" in the text; the model can never supply "no").
 - Privacy: profile answers are saved only on the device, with consent; follow-up answers stay in memory for the one request. Nothing new is stored or logged on the server. The response has a `debug` field (not saved): which fact ids were asked, and whether the route changed after each answer.

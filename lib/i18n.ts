@@ -303,12 +303,25 @@ const en = {
     can_bear_weight_or_use: { q: "Can you put weight on it or use it?", a: { yes: "Yes", no: "No" } },
     could_be_pregnant: { q: "Could you be pregnant?", a: { yes: "Yes", no: "No" } },
   } as Record<string, { q: string; a: Record<string, string> }>,
-  severeWorseTitle: "Get care today",
-  severeWorseBody: "Because it is severe and getting worse, go to urgent care or a walk-in clinic today, or call 8-1-1 to talk to a nurse.",
   call911IfWorse: "Call 9-1-1 if it gets worse.",
   missingFactsBody: "We couldn't confirm the details that decide where to go, so we will not guess. Call 8-1-1 to talk to a nurse – they can tell you where to go.",
-  controlledBody: "A pharmacist can't renew a controlled medicine (or one you're not sure about) here. Call 8-1-1, or see a doctor by virtual care or at a walk-in clinic.",
   costNote: "Without provincial coverage, a visit may cost money. Ask about the price before you go.",
+  fixedReasons: {
+    severe_worse: "Because it is severe and getting worse, go to urgent care or a walk-in clinic today, or call 8-1-1 to talk to a nurse.",
+    child_urgent: "Because of the high temperature or not drinking or peeing as usual, get your child seen today at urgent care or a walk-in clinic, or call 8-1-1 to talk to a nurse.",
+    controlled_already_out: "You have run out of a controlled medicine. Get seen today at urgent care or a walk-in clinic.",
+    controlled_not_pharmacist: "A pharmacist can't renew a controlled medicine here, or one you're not sure about. A doctor by phone or video can help.",
+  } as Record<string, string>,
+  fixedReasonTitles: {
+    severe_worse: "Get care today",
+    child_urgent: "Get care today",
+    controlled_already_out: "Get care today",
+    controlled_not_pharmacist: "Why",
+  } as Record<string, string>,
+  dontStopMedicine: "Don't stop this medicine suddenly without advice from a doctor, nurse or pharmacist.",
+  pharmacistIfNotControlled: "If the pharmacist confirms it isn't a controlled medicine, they may be able to renew it.",
+  intakeNeededTitle: "Three quick taps for symptoms",
+  intakeNeededHelp: "For symptoms, we need how bad it is, whether it is changing, and since when. They decide where to go.",
   routeNames: {
     pharmacist: "See a pharmacist",
     virtual_care: "Virtual care (phone or video)",
@@ -619,12 +632,25 @@ const fr: typeof en = {
     can_bear_weight_or_use: { q: "Pouvez-vous vous appuyer dessus ou l'utiliser?", a: { yes: "Oui", no: "Non" } },
     could_be_pregnant: { q: "Pourriez-vous être enceinte?", a: { yes: "Oui", no: "Non" } },
   },
-  severeWorseTitle: "Obtenez des soins aujourd'hui",
-  severeWorseBody: "Comme c'est grave et que ça empire, allez aujourd'hui aux soins urgents ou dans une clinique sans rendez-vous, ou composez le 8-1-1 pour parler à une infirmière.",
   call911IfWorse: "Composez le 9-1-1 si ça empire.",
   missingFactsBody: "Nous n'avons pas pu confirmer les détails qui décident où aller, alors nous ne devinerons pas. Composez le 8-1-1 pour parler à une infirmière – elle vous dira où aller.",
-  controlledBody: "Un pharmacien ne peut pas renouveler ici un médicament contrôlé (ou dont vous n'êtes pas sûr). Composez le 8-1-1, ou consultez un médecin en soins virtuels ou dans une clinique sans rendez-vous.",
   costNote: "Sans couverture provinciale, une visite peut coûter de l'argent. Demandez le prix avant d'y aller.",
+  fixedReasons: {
+    severe_worse: "Comme c'est grave et que ça empire, allez aujourd'hui aux soins urgents ou dans une clinique sans rendez-vous, ou composez le 8-1-1 pour parler à une infirmière.",
+    child_urgent: "À cause de la forte température, ou parce que votre enfant ne boit pas ou n'urine pas comme d'habitude, faites-le voir aujourd'hui aux soins urgents ou dans une clinique sans rendez-vous, ou composez le 8-1-1 pour parler à une infirmière.",
+    controlled_already_out: "Vous n'avez plus de ce médicament contrôlé. Faites-vous voir aujourd'hui aux soins urgents ou dans une clinique sans rendez-vous.",
+    controlled_not_pharmacist: "Un pharmacien ne peut pas renouveler ici un médicament contrôlé, ou dont vous n'êtes pas sûr. Un médecin par téléphone ou vidéo peut vous aider.",
+  },
+  fixedReasonTitles: {
+    severe_worse: "Obtenez des soins aujourd'hui",
+    child_urgent: "Obtenez des soins aujourd'hui",
+    controlled_already_out: "Obtenez des soins aujourd'hui",
+    controlled_not_pharmacist: "Pourquoi",
+  },
+  dontStopMedicine: "N'arrêtez pas ce médicament d'un coup sans l'avis d'un médecin, d'une infirmière ou d'un pharmacien.",
+  pharmacistIfNotControlled: "Si le pharmacien confirme que ce n'est pas un médicament contrôlé, il pourra peut-être le renouveler.",
+  intakeNeededTitle: "Trois petites réponses pour les symptômes",
+  intakeNeededHelp: "Pour des symptômes, nous avons besoin de la gravité, de l'évolution et de la durée. Elles décident où aller.",
   routeNames: {
     pharmacist: "Voir un pharmacien",
     virtual_care: "Soins virtuels (téléphone ou vidéo)",
@@ -637,4 +663,29 @@ const fr: typeof en = {
 };
 
 export const STRINGS: Record<Lang, typeof en> = { en, fr };
+
+/**
+ * "Call 9-1-1 if it gets worse" in every language the red-flag rules cover (lib/safety/redFlags.ts), shown in the
+ * language the person wrote in. Safety text, so it does not fall back to English.
+ * TODO: native speakers must review every translation except en/fr before launch.
+ */
+export const CALL_911_IF_WORSE: Record<string, string> = {
+  en: "Call 9-1-1 if it gets worse.",
+  fr: "Composez le 9-1-1 si ça empire.",
+  es: "Llame al 9-1-1 si empeora.",
+  zh: "如果情况变得更严重，请拨打 9-1-1。",
+  "zh-hant": "如果情況變得更嚴重，請撥打 9-1-1。",
+  vi: "Hãy gọi 9-1-1 nếu tình trạng nặng hơn.",
+  pa: "ਜੇ ਹਾਲਤ ਹੋਰ ਵਿਗੜੇ ਤਾਂ 9-1-1 'ਤੇ ਫ਼ੋਨ ਕਰੋ।",
+  tl: "Tumawag sa 9-1-1 kung lumala ito.",
+  ar: "اتصل بالرقم 9-1-1 إذا ساءت الحالة.",
+};
+
+/** Pick the 9-1-1 line for a BCP-47 code (zh-Hant / zh-TW / zh-HK → traditional). */
+export function call911Line(language: string): string | undefined {
+  const l = language.toLowerCase();
+  const line = l.startsWith("zh") ? CALL_911_IF_WORSE[/hant|tw|hk|mo/.test(l) ? "zh-hant" : "zh"] : CALL_911_IF_WORSE[l.split("-")[0]];
+  // Keep "9-1-1" left-to-right inside right-to-left text (otherwise Arabic shows "1-1-9").
+  return line?.replace("9-1-1", "\u20669-1-1\u2069");
+}
 export type Strings = typeof en;
