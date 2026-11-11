@@ -9,6 +9,7 @@
  *  - build_summary    → only when the user asks for the PDF (/api/summary).
  */
 import type { ToolSpec } from "../llm/types";
+import { FACTS, FACT_IDS } from "../facts";
 
 type Tool = ToolSpec;
 
@@ -20,6 +21,13 @@ const obj = (properties: Record<string, unknown>, required: string[] = Object.ke
 });
 
 export const NEED_TYPES = ["prescription_renewal", "lab_followup", "minor_symptom", "find_doctor", "other"] as const;
+export const ROUTES = ["pharmacist", "virtual_care", "walk_in", "call_811", "registry", "family_doctor"] as const;
+
+const FACT_HELP = FACT_IDS.map((id) => {
+  const f = FACTS[id];
+  const answers = f.type === "text" ? "short text or not_sure" : f.options.join(" | ");
+  return `${id} (${answers})${f.relevantWhen ? ` – only when ${f.relevantWhen}` : ""}`;
+}).join("; ");
 
 export const TOOLS: Tool[] = [
   {
@@ -31,6 +39,14 @@ export const TOOLS: Tool[] = [
       need_summary_en: { type: "string", description: "One or two plain-English sentences describing what the user asked for, including any symptoms they mentioned, in their own terms." },
       need_type: { type: "string", enum: [...NEED_TYPES] },
       medication_mentioned: { type: "string", description: "Brand name or DIN if the user named a medication, else an empty string." },
+      stated_facts: {
+        type: "array",
+        description: `Facts the user ALREADY stated clearly in their own words, so they are not asked again. Only include a fact if the text says it; never guess. Facts and allowed values: ${FACT_HELP}.`,
+        items: obj({
+          fact_id: { type: "string", enum: [...FACT_IDS] },
+          value: { type: "string", description: "One of the allowed values for this fact (for medication_name: the name as written)." },
+        }),
+      },
     }),
   },
   {
@@ -110,7 +126,11 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "ask_clarifying_question",
-    description: "Use instead of present_route ONLY if the request is too vague to choose any route. One short question in the user's language.",
-    parameters: obj({ question: { type: "string" } }),
+    description:
+      "Ask ONE follow-up, chosen from the fixed list of facts. The app shows the official question text and tap answers in the user's language – you do not write the question. Call it only after search_care_rules, only for a fact listed in a candidate rule's required_facts (or a situational fact that applies) that is not already known, and pick the single fact whose answer is most likely to change the route. At most 2 follow-ups per request.",
+    parameters: obj({
+      fact_id: { type: "string", enum: [...FACT_IDS] },
+      likely_route: { type: "string", enum: [...ROUTES], description: "The route you would choose right now without this answer." },
+    }),
   },
 ];
