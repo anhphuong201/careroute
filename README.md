@@ -21,19 +21,30 @@ npm test                     # red-flag unit tests
 3. Deploy. No database is needed: households and search history stay in the user's browser.
 
 ## How the agent works
+Rule of thumb for the intake: **ask a question only if its answer can change the route.**
 ```
-User ─► safety checklist (tap = emergency screen, no AI)
-     ─► /api/agent
-          1. checkRedFlags(raw text, checklist, age)        rules, not AI ── match → 911 / 988 / 811 screen
-          2. AI → record_need (English restatement)
-             checkRedFlags(English restatement)             rules again ─── match → emergency screen
-          3. AI → search_care_rules → symptom_guide (HealthLink BC) → find_facilities → check_er_waits / lookup_medication
-          4. AI → present_route  → main route + 1–3 "If …" alternatives + a word-for-word quote from the guideline;
-                                       no quote match / "no guideline" → 811 (no guessing); server checks every rule_id was really retrieved,
-                                       attaches the rule's official source link + facility records
+User ─► who needs care (exact age: birth date, else months under 2 / years) + family doctor
+     ─► safety checklist (tap = emergency screen, no AI)
+     ─► one screen: own words + severity + trend + how long (+ coverage / higher-risk / preferred mode, asked once)
+     ─► /api/agent  (every structured field is checked against an allow-list)
+          1. checkRedFlags(raw text + tap answers, checklist, exact ageMonths)   rules, not AI ── match → 911 / 988 / 811
+          2. AI → record_need (English restatement + facts already stated)
+             checkRedFlags(English restatement)                               rules again ─── match → emergency screen
+          3. AI → search_care_rules (each rule lists its required_facts) → symptom_guide → find_facilities → check_er_waits / lookup_medication
+          3b. AI → ask_clarifying_question(fact_id)   only for an unknown fact that can change the route; max 2 per request.
+                  The app shows the registry's question (en/fr) as tap chips with "Not sure"; the answer is re-sent as a field.
+          4. AI → present_route → server checks: rule really retrieved + word-for-word quote (else 811),
+                                   decisive facts known (else ask; after 2 questions → 811),
+                                   controlled drug (yes / not sure) → never a pharmacist renewal,
+                                   severe AND getting worse → walk-in/urgent care + "call 9-1-1 if it gets worse" (not AI),
+                                   preferred mode only re-orders the alternatives
      ─► user taps "Choose" → approval dialog → /api/book (mock, labelled SIMULATED)
      ─► /api/summary → one-page PDF (FHIR IPS layout) from /data/personas
 ```
+- **Follow-up facts** live in one typed registry (`lib/facts.ts`): `temperature_c`, `drinking_and_peeing_normally`, `medication_name`, `runs_out_when`, `is_controlled_drug`, `lab_ordered_by`, `lab_flagged_abnormal`, `can_bear_weight_or_use`, `could_be_pregnant`. Rules opt in with `required_facts: [...]` in their front-matter. Renewal and lab facts are enforced by the server; the others are situational and asked only when they apply.
+- Structured facts, intake and coverage go into the model's turn as plain lines **outside** `<user_request>`. Without coverage, the agent is told to mention cost and the result shows a cost note.
+- Answers can only add urgency: a fever answer feeds the red-flag rules, and for `is_controlled_drug` the most cautious answer wins (the person's, a drug-database "controlled" schedule, or the model reading "yes" in the text; the model can never supply "no").
+- Privacy: profile answers are saved only on the device, with consent; follow-up answers stay in memory for the one request. Nothing new is stored or logged on the server. The response has a `debug` field (not saved): which fact ids were asked, and whether the route changed after each answer.
 - The model never sees `check_red_flags`, `book_appointment` or `build_summary`; the server runs them.
 - **Getting there:** Transit directions (Google Maps) and an Uber link with the drop-off filled in (the rider confirms in Uber).
 - **Suggested times:** each person's usual free windows ∩ the place's opening hours (device only); after booking, add to the phone calendar (.ics) or Google Calendar.
@@ -50,7 +61,8 @@ User ─► safety checklist (tap = emergency screen, no AI)
 | `lib/tools/definitions.ts` | Tool schemas (provider-neutral) |
 | `lib/llm/` | OpenAI + Claude adapters; provider chosen by env vars |
 | `lib/provinces.ts` | Province registry (add new provinces here) |
-| `rules/<prov>/*.md` | Care-route rules, each with a `source_url` in its front-matter |
+| `rules/<prov>/*.md` | Care-route rules, each with a `source_url` (and optional `required_facts`) in its front-matter |
+| `lib/facts.ts`, `lib/intake.ts` | Follow-up fact registry and intake fields (allow-lists shared by UI, API and agent) |
 | `data/<prov>/facilities.csv`, `pharmacies.csv`, `er_waits.json` | Facility and wait-time data |
 | `data/personas/` | Synthea FHIR bundles for `build_summary` |
 | `scripts/refresh-er-waits.ts` | Refreshes ER waits from the official AB/BC pages |
