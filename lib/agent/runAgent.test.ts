@@ -198,7 +198,7 @@ describe("runAgent – follow-up questions (fact registry)", () => {
     );
     expect(r).toMatchObject({ type: "route", rule: { route: "pharmacist" }, no_guideline: false, debug: { asked: ["medication_name"], route_changed: [false] } });
     // Structured facts sit outside <user_request>, as plain lines.
-    const turn = String(second.requests[0].turns[0].text);
+    const turn = (second.requests[0].turns[0] as { text: string }).text;
     expect(turn.indexOf('medication_name: "Synthroid"')).toBeGreaterThan(-1);
     expect(turn.indexOf('medication_name: "Synthroid"')).toBeLessThan(turn.indexOf("<user_request>"));
     expect(turn).toContain("Follow-ups already asked: 1 of 2");
@@ -336,7 +336,7 @@ describe("runAgent – follow-up questions (fact registry)", () => {
   it("puts coverage in the user turn so the agent can mention cost", async () => {
     const { client, requests } = fake([[renewalNeed()], [search], [presentPharmacist]]);
     await runAgent({ ...base, facts: RENEWAL_FACTS, profile: { coverage: "waiting_for_coverage" }, text: "refill" }, client);
-    const turn = String(requests[0].turns[0].text);
+    const turn = (requests[0].turns[0] as { text: string }).text;
     expect(turn).toMatch(/Coverage: waiting_for_coverage.*cost money/);
     expect(turn.indexOf("Coverage:")).toBeLessThan(turn.indexOf("<user_request>"));
   });
