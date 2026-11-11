@@ -28,7 +28,9 @@ function fake(steps: Step[]) {
 }
 
 const CALGARY = { lat: 51.0447, lng: -114.0719 };
-const base: AgentInput = { province: "AB", text: "", ageGroup: "adult", hasFamilyDoctor: "no", location: CALGARY };
+/** Core taps answered (required for symptom requests; optional for renewals and labs). */
+const SYMPTOM_INTAKE = { severity: "mild", trend: "same", duration: "1_3_days" } as const;
+const base: AgentInput = { province: "AB", text: "", ageGroup: "adult", hasFamilyDoctor: "no", location: CALGARY, intake: SYMPTOM_INTAKE };
 /** Facts that decide renewal / lab routes, already answered (so these tests are about other behaviour). */
 const RENEWAL_FACTS = { medication_name: "Synthroid", runs_out_when: "within_3_days", is_controlled_drug: "no" } as const;
 const LAB_FACTS = { lab_ordered_by: "walk_in", lab_flagged_abnormal: "no" } as const;
@@ -183,20 +185,26 @@ describe("runAgent – follow-up questions (fact registry)", () => {
     input: { guideline_match: "specific", evidence: ev("ab-pharmacist"), rule_id: "ab-pharmacist", reason: "x", message: "y", facility_kind: "pharmacy", facility_ids: [], registry_rule_id: "ab-registry", alternatives: [] },
   };
 
-  it("renewal with the medication missing asks exactly 1 follow-up, then routes", async () => {
-    const known = { runs_out_when: "within_3_days", is_controlled_drug: "no" } as const;
-    const first = fake([[renewalNeed()], [search], [{ name: "ask_clarifying_question", input: { fact_id: "medication_name", likely_route: "pharmacist" } }]]);
+  it("renewal: medication name is optional – known run-out and controlled status route without a question", async () => {
+    const { client } = fake([[renewalNeed()], [search], [{ name: "find_facilities", input: { kind: "pharmacy", limit: 3 } }], [presentPharmacist]]);
+    const r = await runAgent({ ...base, intake: undefined, facts: { runs_out_when: "within_2_weeks", is_controlled_drug: "no" }, text: "renew my pills" }, client);
+    expect(r).toMatchObject({ type: "route", rule: { route: "pharmacist" }, no_guideline: false, debug: { asked: [], route_changed: [] } });
+  });
+
+  it("renewal with the run-out date missing asks exactly 1 follow-up, then routes", async () => {
+    const known = { is_controlled_drug: "no", medication_name: "Synthroid" } as const;
+    const first = fake([[renewalNeed()], [search], [{ name: "ask_clarifying_question", input: { fact_id: "runs_out_when", likely_route: "pharmacist" } }]]);
     const q = await runAgent({ ...base, facts: known, text: "I need my prescription renewed" }, first.client);
-    expect(q).toMatchObject({ type: "clarify", fact_id: "medication_name", likely_route: "pharmacist", debug: { asked: ["medication_name"], route_changed: [null] } });
+    expect(q).toMatchObject({ type: "clarify", fact_id: "runs_out_when", likely_route: "pharmacist", debug: { asked: ["runs_out_when"], route_changed: [null] } });
     // The question text is not the model's: the result carries only the fact id.
     expect(q).not.toHaveProperty("question");
 
     const second = fake([[renewalNeed()], [search], [{ name: "find_facilities", input: { kind: "pharmacy", limit: 3 } }], [presentPharmacist]]);
     const r = await runAgent(
-      { ...base, facts: { ...known, medication_name: "Synthroid" }, followUps: [{ fact_id: "medication_name", likely_route: "pharmacist" }], text: "I need my prescription renewed" },
+      { ...base, facts: { ...known, runs_out_when: "within_3_days" }, followUps: [{ fact_id: "runs_out_when", likely_route: "pharmacist" }], text: "I need my prescription renewed" },
       second.client,
     );
-    expect(r).toMatchObject({ type: "route", rule: { route: "pharmacist" }, no_guideline: false, debug: { asked: ["medication_name"], route_changed: [false] } });
+    expect(r).toMatchObject({ type: "route", rule: { route: "pharmacist" }, no_guideline: false, debug: { asked: ["runs_out_when"], route_changed: [false] } });
     // Structured facts sit outside <user_request>, as plain lines.
     const turn = (second.requests[0].turns[0] as { text: string }).text;
     expect(turn.indexOf('medication_name: "Synthroid"')).toBeGreaterThan(-1);
@@ -204,29 +212,23 @@ describe("runAgent – follow-up questions (fact registry)", () => {
     expect(turn).toContain("Follow-ups already asked: 1 of 2");
   });
 
-  it("with more than 2 facts missing, stops at 2 questions and falls back to 811", async () => {
-    const text = "refill my pills";
-    const t1 = fake([[renewalNeed()], [search], [{ name: "ask_clarifying_question", input: { fact_id: "runs_out_when", likely_route: "pharmacist" } }]]);
-    expect(await runAgent({ ...base, text }, t1.client)).toMatchObject({ type: "clarify", fact_id: "runs_out_when" });
-
-    const asked1 = [{ fact_id: "runs_out_when", likely_route: "pharmacist" }] as const;
-    const t2 = fake([[renewalNeed()], [search], [{ name: "ask_clarifying_question", input: { fact_id: "is_controlled_drug", likely_route: "pharmacist" } }]]);
-    expect(await runAgent({ ...base, text, facts: { runs_out_when: "later" }, followUps: [...asked1] }, t2.client)).toMatchObject({
-      type: "clarify",
-      fact_id: "is_controlled_drug",
-      debug: { asked: ["runs_out_when", "is_controlled_drug"], route_changed: [false, null] },
-    });
-
-    const asked2 = [...asked1, { fact_id: "is_controlled_drug", likely_route: "pharmacist" }] as const;
-    const t3 = fake([
+  it("stops at 2 questions: a 3rd is refused, and a route fact still missing falls back to 811", async () => {
+    const asked = [
+      { fact_id: "medication_name", likely_route: "pharmacist" },
+      { fact_id: "could_be_pregnant", likely_route: "pharmacist" },
+    ] as const;
+    const t = fake([
       [renewalNeed()],
       [search],
-      [{ name: "ask_clarifying_question", input: { fact_id: "medication_name", likely_route: "pharmacist" } }], // a 3rd question is refused
-      [presentPharmacist], // medication_name still unknown → 811
+      [{ name: "ask_clarifying_question", input: { fact_id: "runs_out_when", likely_route: "pharmacist" } }], // a 3rd question is refused
+      [presentPharmacist], // runs_out_when still unknown → 811
     ]);
-    const r = await runAgent({ ...base, text, facts: { runs_out_when: "later", is_controlled_drug: "no" }, followUps: [...asked2] }, t3.client);
+    const r = await runAgent(
+      { ...base, text: "refill", facts: { medication_name: "not_sure", could_be_pregnant: "no", is_controlled_drug: "no" }, followUps: [...asked] },
+      t.client,
+    );
     expect(r).toMatchObject({ type: "route", rule: { route: "call_811" }, no_guideline: true, fallback_reason: "missing_facts" });
-    expect(JSON.stringify(t3.requests[3].turns.at(-1))).toContain("No follow-ups left");
+    expect(JSON.stringify(t.requests[3].turns.at(-1))).toContain("No follow-ups left");
   });
 
   it("server asks for the decisive fact itself if the model routes without it twice", async () => {
@@ -261,12 +263,54 @@ describe("runAgent – follow-up questions (fact registry)", () => {
     expect(JSON.stringify(requests[3].turns.at(-1))).toContain("No follow-up needed");
   });
 
-  it("a controlled (or maybe controlled) drug never ends at a pharmacist renewal", async () => {
-    for (const answer of ["yes", "not_sure"]) {
-      const { client, requests } = fake([[renewalNeed()], [search], [presentPharmacist], [presentPharmacist]]);
-      const r = await runAgent({ ...base, facts: { ...RENEWAL_FACTS, is_controlled_drug: answer }, text: "refill" }, client);
-      expect(r).toMatchObject({ type: "route", rule: { route: "call_811" }, fallback_reason: "controlled_drug" });
-      expect(JSON.stringify(requests[3].turns.at(-1))).toContain("cannot renew");
+  const presentVirtual = {
+    name: "present_route",
+    input: { guideline_match: "specific", evidence: ev("ab-virtual-care"), rule_id: "ab-virtual-care", reason: "x", message: "y", facility_kind: "virtual", facility_ids: [], registry_rule_id: "", alternatives: [] },
+  };
+
+  it("controlled = not sure: no 811 – virtual care first, pharmacist as an 'if it isn't controlled' option", async () => {
+    // The model insists on the pharmacist twice: the server decides.
+    const insist = fake([[renewalNeed()], [search], [presentPharmacist], [presentPharmacist]]);
+    const r = await runAgent({ ...base, facts: { ...RENEWAL_FACTS, is_controlled_drug: "not_sure" }, text: "refill" }, insist.client);
+    if (r.type !== "route") throw new Error("expected route");
+    expect(r.rule.route).toBe("virtual_care");
+    expect(r.no_guideline).toBe(false);
+    expect(r.fixed_reason).toBe("controlled_not_pharmacist");
+    expect(r.facilities.length).toBeGreaterThan(0);
+    expect(r.alternatives[0]).toMatchObject({ rule: { route: "pharmacist" }, note: "pharmacist_if_not_controlled", facility_kind: "pharmacy" });
+    expect(JSON.stringify(insist.requests[3].turns.at(-1))).toContain("cannot renew");
+
+    // The model chooses virtual care itself: its words are kept, and the pharmacist option is added.
+    const good = fake([[renewalNeed()], [search], [presentVirtual]]);
+    const g = await runAgent({ ...base, facts: { ...RENEWAL_FACTS, is_controlled_drug: "not_sure" }, text: "refill" }, good.client);
+    expect(g).toMatchObject({ type: "route", rule: { route: "virtual_care" }, reason: "x", alternatives: [{ rule: { route: "pharmacist" }, note: "pharmacist_if_not_controlled" }] });
+  });
+
+  it("controlled still unknown after 2 follow-ups counts as 'not sure' (no 811)", async () => {
+    const asked = [
+      { fact_id: "runs_out_when", likely_route: "pharmacist" },
+      { fact_id: "medication_name", likely_route: "pharmacist" },
+    ] as const;
+    const { client } = fake([[renewalNeed()], [search], [presentPharmacist], [presentPharmacist]]);
+    const r = await runAgent({ ...base, facts: { runs_out_when: "later", medication_name: "not_sure" }, followUps: [...asked], text: "refill" }, client);
+    expect(r).toMatchObject({ type: "route", rule: { route: "virtual_care" }, no_guideline: false });
+  });
+
+  it("controlled = yes: never the pharmacist, not even as an alternative", async () => {
+    const alts = { ...presentVirtual.input, alternatives: [{ rule_id: "ab-pharmacist", when: "If you prefer a pharmacy.", facility_kind: "pharmacy" }] };
+    const { client } = fake([[renewalNeed()], [search], [{ name: "present_route", input: alts }]]);
+    const r = await runAgent({ ...base, facts: { ...RENEWAL_FACTS, is_controlled_drug: "yes" }, text: "refill" }, client);
+    if (r.type !== "route") throw new Error("expected route");
+    expect(r.rule.route).toBe("virtual_care");
+    expect(r.alternatives.map((a) => a.rule.route)).not.toContain("pharmacist");
+    expect(r.dont_stop_medicine).toBe(false);
+  });
+
+  it("controlled = yes and already out → walk-in/urgent care today, with 'don't stop suddenly'", async () => {
+    for (const steps of [[presentVirtual], [presentPharmacist, presentPharmacist]]) {
+      const { client } = fake([[renewalNeed()], [search], ...steps.map((s) => [s])]);
+      const r = await runAgent({ ...base, facts: { ...RENEWAL_FACTS, is_controlled_drug: "yes", runs_out_when: "already_out" }, text: "out of my pills" }, client);
+      expect(r).toMatchObject({ type: "route", rule: { route: "walk_in" }, escalated: true, fixed_reason: "controlled_already_out", dont_stop_medicine: true });
     }
   });
 
@@ -295,10 +339,52 @@ describe("runAgent – follow-up questions (fact registry)", () => {
     try {
       const { client } = fake([[renewalNeed()], [search], [{ name: "lookup_medication", input: { query: "oxy" } }], [presentPharmacist], [presentPharmacist]]);
       const r = await runAgent({ ...base, facts: RENEWAL_FACTS, text: "refill my oxy" }, client);
-      expect(r).toMatchObject({ type: "route", rule: { route: "call_811" }, fallback_reason: "controlled_drug" });
+      expect(r).toMatchObject({ type: "route", rule: { route: "virtual_care" }, fixed_reason: "controlled_not_pharmacist" });
+      if (r.type === "route") expect(r.alternatives.map((a) => a.rule.route)).not.toContain("pharmacist");
     } finally {
       globalThis.fetch = realFetch;
     }
+  });
+
+  it("symptom requests need severity, trend and duration; renewals and labs don't", async () => {
+    const symptom = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Sore throat.", need_type: "minor_symptom", medication_mentioned: "", stated_facts: [] } }],
+    ]);
+    const q = await runAgent({ ...base, intake: { severity: "mild" }, text: "sore throat" }, symptom.client);
+    expect(q).toMatchObject({ type: "clarify", fact_id: null, intake_needed: ["trend", "duration"], debug: { asked: [] } });
+
+    const renewal = fake([[renewalNeed()], [search], [presentPharmacist]]);
+    expect(await runAgent({ ...base, intake: undefined, facts: RENEWAL_FACTS, text: "refill" }, renewal.client)).toMatchObject({ type: "route" });
+    const lab = fake([
+      [{ name: "record_need", input: { detected_language: "en", need_summary_en: "Lab follow-up.", need_type: "lab_followup", medication_mentioned: "", stated_facts: [] } }],
+      [{ name: "search_care_rules", input: { need_type: "lab_followup", need_summary_en: "lab" } }],
+      [presentVirtual],
+    ]);
+    expect(await runAgent({ ...base, intake: {}, facts: LAB_FACTS, text: "lab results" }, lab.client)).toMatchObject({ type: "route", rule: { route: "virtual_care" } });
+  });
+
+  it("a child whose request mentions fever is asked the temperature (code, not AI); 40 °C+ means care today", async () => {
+    const symptomNeed = { name: "record_need", input: { detected_language: "en", need_summary_en: "Child has a fever and sore throat.", need_type: "minor_symptom", medication_mentioned: "", stated_facts: [] } };
+    const symptomSearch = { name: "search_care_rules", input: { need_type: "minor_symptom", need_summary_en: "fever" } };
+    const child = { ...base, ageGroup: "child" as const, ageMonths: 72, text: "my son has a fever" };
+    const q = await runAgent(child, fake([[symptomNeed], [symptomSearch], [presentPharmacist]]).client);
+    expect(q).toMatchObject({ type: "clarify", fact_id: "temperature_c" });
+
+    const hot = await runAgent(
+      { ...child, facts: { temperature_c: "40_or_higher" }, followUps: [{ fact_id: "temperature_c", likely_route: "pharmacist" }] },
+      fake([[symptomNeed], [symptomSearch], [presentPharmacist]]).client,
+    );
+    expect(hot).toMatchObject({ type: "route", rule: { route: "walk_in" }, fixed_reason: "child_urgent", call_911_if_worse: true });
+
+    const mild = await runAgent(
+      { ...child, facts: { temperature_c: "38_to_38_9" }, followUps: [{ fact_id: "temperature_c", likely_route: "pharmacist" }] },
+      fake([[symptomNeed], [symptomSearch], [presentPharmacist]]).client,
+    );
+    expect(mild).toMatchObject({ type: "route", rule: { route: "pharmacist" } });
+
+    // Adults are not asked.
+    const adult = await runAgent({ ...base, text: "I have a fever" }, fake([[symptomNeed], [symptomSearch], [presentPharmacist]]).client);
+    expect(adult).toMatchObject({ type: "route", rule: { route: "pharmacist" } });
   });
 
   it("a 2-month-old with fever still triggers the red flag through the exact ageMonths", async () => {

@@ -8,7 +8,7 @@
  *  4. model → present_route → server validates rule_id, facility ids, required facts and the
  *     deterministic escalations (severe + worse, controlled drugs), then attaches sources
  */
-import { checkRedFlags, type RedFlagAction, type RedFlagCategory } from "../safety/redFlags";
+import { checkRedFlags, mentionsFever, type RedFlagAction, type RedFlagCategory } from "../safety/redFlags";
 import { PROVINCES, type ProvinceCode } from "../provinces";
 import { getRule, searchCareRules, type NeedType } from "../tools/careRules";
 import { checkErWaits, findFacilities, type Facility, type FacilityKind } from "../tools/facilities";
@@ -22,7 +22,7 @@ import type { LlmClient, Turn } from "../llm/types";
 import type { AgeGroup, CareRoute } from "../types";
 import {
   MAX_FOLLOW_UPS,
-  controlledOrUnsure,
+  childUrgentFromFacts,
   factLines,
   isFactId,
   knownFacts,
@@ -34,7 +34,7 @@ import {
   type FactId,
   type FollowUp,
 } from "../facts";
-import { needsEscalation, type CoreIntake, type ProfileIntake } from "../intake";
+import { isUnder18, missingIntake, needsEscalation, type CoreIntake, type IntakeField, type ProfileIntake } from "../intake";
 
 const MAX_STEPS = 10;
 
@@ -73,7 +73,25 @@ export interface AgentDebug {
   route_changed: (boolean | null)[];
 }
 
-export type FallbackReason = "no_guideline" | "missing_facts" | "controlled_drug";
+export type FallbackReason = "no_guideline" | "missing_facts";
+
+/**
+ * When set, the server decided the route (not the model), and the UI shows this fixed, translated reason
+ * instead of the model's words.
+ *  - severe_worse: severe AND getting worse → walk-in/urgent care
+ *  - child_urgent: under 18 with 40 °C+ or not drinking/peeing as usual → walk-in/urgent care today
+ *  - controlled_already_out: controlled medicine, already out → walk-in/urgent care today, don't stop suddenly
+ *  - controlled_not_pharmacist: controlled or not sure → a doctor (virtual care or walk-in) instead of a pharmacist
+ */
+export type FixedReason = "severe_worse" | "child_urgent" | "controlled_already_out" | "controlled_not_pharmacist";
+
+export interface Alternative {
+  rule: SourcedRule;
+  when: string;
+  facility_kind: FacilityKind | null;
+  /** Fixed, translated "when" text shown by the UI instead of `when`. */
+  note?: "pharmacist_if_not_controlled";
+}
 
 export type RouteResult = {
   type: "route";
@@ -87,15 +105,18 @@ export type RouteResult = {
   facilities: (Facility & { wait_minutes?: number | null })[];
   er_waits_source?: { name: string; url: string; refreshed_at: string };
   registry?: SourcedRule;
-  alternatives: { rule: SourcedRule; when: string; facility_kind: FacilityKind | null }[];
+  alternatives: Alternative[];
   guide?: { title: string; url: string };
   /** English reason-for-visit text for booking forms / phone calls. */
   booking_note: string;
   /** true when the route is forced to 811 (see fallback_reason). */
   no_guideline: boolean;
   fallback_reason?: FallbackReason;
-  /** The server bumped the route (severe AND getting worse). reason/message are then shown from i18n, not the model. */
+  /** The server moved the route to walk-in/urgent care (see fixed_reason). */
   escalated: boolean;
+  fixed_reason?: FixedReason;
+  /** Show "don't stop this medicine suddenly without advice". */
+  dont_stop_medicine: boolean;
   /** Show "call 9-1-1 if it gets worse" (severe AND getting worse). */
   call_911_if_worse: boolean;
   /** Supporting text from the guideline (verified against the rule). */
@@ -106,7 +127,15 @@ export type RouteResult = {
 
 export type AgentResult =
   | { type: "emergency"; action: RedFlagAction; stage: "input" | "translation"; debug: AgentDebug }
-  | { type: "clarify"; fact_id: FactId | null; likely_route: CareRoute | null; language: string; debug: AgentDebug }
+  | {
+      type: "clarify";
+      fact_id: FactId | null;
+      likely_route: CareRoute | null;
+      language: string;
+      debug: AgentDebug;
+      /** Symptom requests need these core taps before routing (not counted as a follow-up). */
+      intake_needed?: IntakeField[];
+    }
   | RouteResult
   | { type: "error"; message: string };
 
@@ -222,19 +251,21 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
       no_guideline: true,
       fallback_reason: why,
       escalated: false,
+      dont_stop_medicine: false,
       call_911_if_worse: escalate,
       location_needed: false,
       debug: debugFor("call_811"),
     };
   };
 
-  /** Severe AND getting worse → never pharmacist / registry / virtual / family doctor. Deterministic, not AI. */
-  const applyEscalation = (r: RouteResult): RouteResult => {
-    if (!escalate) return r;
-    const safeAlts = r.alternatives.filter((a) => !NOT_FOR_SEVERE_WORSE.includes(a.rule.route));
-    if (!NOT_FOR_SEVERE_WORSE.includes(r.rule.route)) return { ...r, alternatives: safeAlts, call_911_if_worse: true };
+  const under18 = isUnder18(input.ageMonths, input.ageGroup);
+  const isRenewal = () => need?.type === "prescription_renewal";
+  /** is_controlled_drug, treating "unknown after the follow-ups" as "not sure". */
+  const controlled = () => facts.is_controlled_drug ?? (followUps.length >= MAX_FOLLOW_UPS ? "not_sure" : undefined);
+
+  const walkInRoute = (r: RouteResult, why: FixedReason): RouteResult => {
     const walkIn = toSourced(input.province, `${province.dir}-walk-in`);
-    if (!walkIn) return { ...fallback811({}, "no_guideline"), call_911_if_worse: true };
+    if (!walkIn) return { ...fallback811({}, "no_guideline"), call_911_if_worse: r.call_911_if_worse };
     const near = findFacilities({ province: input.province, kind: "walk_in", lat: input.location?.lat, lng: input.location?.lng, limit: 5 });
     const w = checkErWaits(input.province, near.facilities.map((f) => f.id));
     const waitById = new Map(w.sites.map((s) => [s.id, s.wait_minutes]));
@@ -249,11 +280,70 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
       er_waits_source: w.available && w.sites.length ? { name: w.source_name!, url: w.source_url!, refreshed_at: w.refreshed_at! } : undefined,
       alternatives: [{ rule: nurse, when: "", facility_kind: null }],
       evidence: undefined,
+      no_guideline: false,
+      fallback_reason: undefined,
       escalated: true,
-      call_911_if_worse: true,
+      fixed_reason: why,
       location_needed: !near.location_used,
       debug: debugFor(walkIn.route),
     };
+  };
+
+  /**
+   * Deterministic urgency, applied to every route (not AI). Answers can only ADD urgency:
+   *  - severe AND getting worse → never pharmacist / registry / virtual / family doctor (walk-in/urgent care or 811)
+   *  - under 18 with 40 °C+ or not drinking/peeing as usual → same, today
+   *  - renewal, controlled = yes, already out → walk-in/urgent care today + "don't stop suddenly"
+   */
+  const finalize = (r: RouteResult): RouteResult => {
+    const outOfControlled = isRenewal() && facts.is_controlled_drug === "yes" && facts.runs_out_when === "already_out";
+    const urgent: FixedReason | null = escalate
+      ? "severe_worse"
+      : under18 && childUrgentFromFacts(facts)
+        ? "child_urgent"
+        : outOfControlled
+          ? "controlled_already_out"
+          : null;
+    let out: RouteResult = { ...r, dont_stop_medicine: r.dont_stop_medicine || outOfControlled };
+    if (!urgent) return out;
+    out = { ...out, call_911_if_worse: out.call_911_if_worse || urgent !== "controlled_already_out" };
+    const fine: CareRoute[] = urgent === "controlled_already_out" ? ["walk_in"] : ["walk_in", "call_811"];
+    if (fine.includes(out.rule.route)) {
+      return { ...out, alternatives: out.alternatives.filter((a) => !NOT_FOR_SEVERE_WORSE.includes(a.rule.route)) };
+    }
+    return walkInRoute(out, urgent);
+  };
+
+  /** Controlled or not-sure renewal that the model kept at the pharmacist: a doctor instead, pharmacist as an "if" option. */
+  const doctorInsteadOfPharmacist = (r: RouteResult): RouteResult => {
+    const virtual = toSourced(input.province, `${province.dir}-virtual-care`);
+    if (!virtual) return walkInRoute(r, "controlled_not_pharmacist");
+    const list = findFacilities({ province: input.province, kind: "virtual", limit: 5 });
+    return {
+      ...r,
+      rule: virtual,
+      reason: "",
+      message: "",
+      facility_kind: "virtual",
+      facilities: list.facilities,
+      evidence: undefined,
+      fixed_reason: "controlled_not_pharmacist",
+      location_needed: false,
+      debug: debugFor(virtual.route),
+    };
+  };
+
+  /** Pharmacist alternatives for a renewal: dropped if controlled, fixed "if it isn't controlled" text if not sure. */
+  const fixPharmacistAlternatives = (r: RouteResult): RouteResult => {
+    if (!isRenewal()) return r;
+    const c = controlled();
+    if (c === "yes") return { ...r, alternatives: r.alternatives.filter((a) => a.rule.route !== "pharmacist") };
+    if (c !== "not_sure" || r.rule.route === "pharmacist") return r;
+    const pharmacist = toSourced(input.province, `${province.dir}-pharmacist`);
+    if (!pharmacist) return r;
+    const others = r.alternatives.filter((a) => a.rule.route !== "pharmacist");
+    const alt: Alternative = { rule: pharmacist, when: "", facility_kind: "pharmacy", note: "pharmacist_if_not_controlled" };
+    return { ...r, alternatives: [alt, ...others].slice(0, 3) };
   };
 
   for (let step = 0; step < MAX_STEPS; step++) {
@@ -297,6 +387,9 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           // ── Gate 2: same rules on the model's English restatement. Can only ADD a red flag.
           const again = checkRedFlags({ text: [need.summary, redFlagHints(facts)].join("\n"), ageMonths: input.ageMonths });
           if (again.triggered) return { type: "emergency", action: again.action, stage: "translation", debug: debugFor(null) };
+          // New / minor symptoms need severity, trend and duration (they can change the route). Renewals and labs don't.
+          const lacking = need.type === "minor_symptom" ? missingIntake(intake) : [];
+          if (lacking.length) return { type: "clarify", fact_id: null, likely_route: null, language: lang(), debug: debugFor(null), intake_needed: lacking };
           results.push(ok({ recorded: true, known_facts: Object.keys(facts) }));
           break;
         }
@@ -387,29 +480,42 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
           }
           const grounded =
             String(args.guideline_match) === "specific" && !!claimed && seenRuleIds.has(claimed.id) && evidenceSupported(evidence, claimed.body);
-          if (!grounded || !claimed) return fallback811(args, "no_guideline");
+          if (!grounded || !claimed) return finalize(fallback811(args, "no_guideline"));
 
           const needType = need?.type ?? "other";
           if (!escalate) {
-            // ── Controlled (or maybe controlled) medicine: never a pharmacist renewal.
-            if (claimed.route === "pharmacist" && needType === "prescription_renewal" && controlledOrUnsure(facts)) {
-              if (!nudgedForControlled) {
-                nudgedForControlled = true;
-                results.push(fail("is_controlled_drug is yes or not sure: a pharmacist cannot renew it here. Choose virtual care, walk-in or the family doctor."));
-                break;
-              }
-              return fallback811(args, "controlled_drug");
+            // ── Temperature for an under-18 whose request mentions fever (urgency check, enforced in code).
+            //    Babies under 3 months with fever never get here: the red-flag rules stop them first.
+            const fever = mentionsFever(text) || mentionsFever(need?.summary ?? "");
+            if (under18 && fever && !knownFacts(facts).has("temperature_c") && !askedIds.has("temperature_c") && followUps.length < MAX_FOLLOW_UPS) {
+              return clarify("temperature_c", claimed.route);
             }
             // ── Facts that decide this route must be known (asked, stated, or "not sure").
             const missing = missingDecisiveFacts(claimed.required_facts, needType, knownFacts(facts)).filter((f) => !askedIds.has(f));
             if (missing.length) {
-              if (followUps.length >= MAX_FOLLOW_UPS) return fallback811(args, "missing_facts");
-              if (!nudgedForFacts) {
-                nudgedForFacts = true;
-                results.push(fail(`Still unknown and decides this route: ${missing.join(", ")}. Call ask_clarifying_question with the most decisive one.`));
-                break;
+              // is_controlled_drug still unknown after the follow-ups counts as "not sure" (handled below), not as missing.
+              const blocking = followUps.length >= MAX_FOLLOW_UPS ? missing.filter((f) => f !== "is_controlled_drug") : missing;
+              if (blocking.length && followUps.length >= MAX_FOLLOW_UPS) return finalize(fallback811(args, "missing_facts"));
+              if (blocking.length) {
+                if (!nudgedForFacts) {
+                  nudgedForFacts = true;
+                  results.push(fail(`Still unknown and decides this route: ${blocking.join(", ")}. Call ask_clarifying_question with the most decisive one.`));
+                  break;
+                }
+                return clarify(blocking[0], claimed.route);
               }
-              return clarify(missing[0], claimed.route);
+            }
+            // ── Controlled (or maybe controlled) medicine: never a pharmacist renewal. One nudge, then the server decides.
+            const c = controlled();
+            if (claimed.route === "pharmacist" && needType === "prescription_renewal" && (c === "yes" || c === "not_sure") && !nudgedForControlled) {
+              nudgedForControlled = true;
+              results.push(
+                fail(
+                  "is_controlled_drug is yes or not sure: a pharmacist cannot renew it here. Choose virtual care or walk-in as the main route" +
+                    (c === "not_sure" ? ", and add the pharmacist as an alternative." : "."),
+                ),
+              );
+              break;
             }
           }
 
@@ -424,7 +530,6 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             input.hasFamilyDoctor !== "yes"
               ? toSourced(input.province, regId) ?? toSourced(input.province, `${province.dir}-registry`)
               : undefined;
-          const blockPharmacist = needType === "prescription_renewal" && controlledOrUnsure(facts);
           const mode = input.profile?.preferredMode;
           const prefers = (r: CareRoute) => (mode && MODE_ROUTES[mode]?.includes(r) ? 1 : 0);
           const alternatives = (Array.isArray(args.alternatives) ? (args.alternatives as Record<string, unknown>[]) : [])
@@ -435,15 +540,13 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
                 seenRuleIds.has(a.rule.rule_id) &&
                 a.rule.rule_id !== rule.rule_id &&
                 a.rule.route !== "registry" &&
-                !(blockPharmacist && a.rule.route === "pharmacist") &&
                 !!a.when,
             )
             .slice(0, 3)
-            .map((a) => ({ rule: a.rule, when: a.when, facility_kind: asKind(a.k) }))
-            // preferredMode only ORDERS the options (stable sort); it never changes the main route.
-            .sort((a, b) => prefers(b.rule.route) - prefers(a.rule.route));
+            .map((a): Alternative => ({ rule: a.rule, when: a.when, facility_kind: asKind(a.k) }));
           const guideUrl = String(args.guide_url || "");
-          return applyEscalation({
+          const c = controlled();
+          const draft: RouteResult = {
             type: "route",
             language: lang(),
             need_type: needType,
@@ -460,11 +563,19 @@ export async function runAgent(input: AgentInput, injected?: LlmClient): Promise
             booking_note: (String(args.booking_note_en || "") || need?.summary || "").slice(0, 300),
             no_guideline: false,
             escalated: false,
+            dont_stop_medicine: false,
             call_911_if_worse: false,
             evidence: evidence.slice(0, 400),
             location_needed: locationNeeded && facilities.length === 0,
             debug: debugFor(rule.route),
-          });
+          };
+          const routed =
+            !escalate && rule.route === "pharmacist" && needType === "prescription_renewal" && (c === "yes" || c === "not_sure")
+              ? doctorInsteadOfPharmacist(draft)
+              : draft;
+          // preferredMode only ORDERS the options (stable sort); it never changes the main route.
+          const result = finalize(fixPharmacistAlternatives(routed));
+          return { ...result, alternatives: [...result.alternatives].sort((a, b) => prefers(b.rule.route) - prefers(a.rule.route)) };
         }
         default:
           results.push(fail(`Unknown tool ${call.name}`));
