@@ -3,7 +3,7 @@ import { runAgent, type AgentInput } from "@/lib/agent/runAgent";
 import { MissingApiKeyError } from "@/lib/llm";
 import { PROVINCES } from "@/lib/provinces";
 import type { RedFlagCategory } from "@/lib/safety/redFlags";
-import { COVERAGES, DURATIONS, HIGHER_RISK, PREFERRED_MODES, SEVERITIES, TRENDS, isOneOf } from "@/lib/intake";
+import { COVERAGES, DURATIONS, HIGHER_RISK, PREFERRED_MODES, SEVERITIES, TRENDS, isOneOf, parseAgeMonths } from "@/lib/intake";
 import { MAX_FOLLOW_UPS, isFactId, validateFactAnswers, type FollowUp } from "@/lib/facts";
 import { ROUTES } from "@/lib/tools/definitions";
 
@@ -39,15 +39,15 @@ export async function POST(req: Request) {
   const lat = Number(loc?.lat);
   const lng = Number(loc?.lng);
   const checklistIn = (b.checklist ?? {}) as Record<string, unknown>;
+  // A wrong age must never be dropped silently: it drives the infant-fever red flag.
+  const age = parseAgeMonths(b.ageMonths);
+  if (!age.ok) return NextResponse.json({ type: "error", message: "bad_age" }, { status: 400 });
 
   const input: AgentInput = {
     province,
     text: String(b.text ?? "").slice(0, 4000),
     ageGroup: AGE_GROUPS.includes(b.ageGroup as never) ? (b.ageGroup as AgentInput["ageGroup"]) : "adult",
-    ageMonths:
-      typeof b.ageMonths === "number" && Number.isFinite(b.ageMonths) && b.ageMonths >= 0 && b.ageMonths <= 130 * 12
-        ? Math.floor(b.ageMonths)
-        : undefined,
+    ageMonths: age.value,
     hasFamilyDoctor: DOCTOR.includes(b.hasFamilyDoctor as never) ? (b.hasFamilyDoctor as AgentInput["hasFamilyDoctor"]) : "no",
     checklist: Object.fromEntries(FLAGS.map((f) => [f, checklistIn[f] === true])),
     location: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,

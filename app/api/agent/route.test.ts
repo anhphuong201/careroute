@@ -34,10 +34,21 @@ describe("POST /api/agent allow-lists", () => {
       { fact_id: "medication_name", likely_route: "call_811" },
     ]);
   });
-  it("ignores a negative or string age", async () => {
-    await post({ province: "AB", text: "x", ageMonths: -3 });
-    expect((seen.at(-1) as Record<string, unknown>).ageMonths).toBeUndefined();
-    await post({ province: "AB", text: "x", ageMonths: "2" });
-    expect((seen.at(-1) as Record<string, unknown>).ageMonths).toBeUndefined();
+  it("accepts a numeric string age and rejects anything non-numeric with 400", async () => {
+    const before = seen.length;
+    const ok = await post({ province: "AB", text: "x", ageMonths: "2" });
+    expect(ok.status).toBe(200);
+    expect((seen.at(-1) as Record<string, unknown>).ageMonths).toBe(2);
+    for (const bad of ["two", "2 months", -3, "-1", true, {}, [2], 99999, "NaN"]) {
+      const res = await post({ province: "AB", text: "x", ageMonths: bad });
+      expect(res.status, String(bad)).toBe(400);
+      expect(await res.json()).toEqual({ type: "error", message: "bad_age" });
+    }
+    expect(seen.length).toBe(before + 1); // the agent never ran for a bad age
+    // Missing age stays "unknown".
+    for (const none of [undefined, null, ""]) {
+      expect((await post({ province: "AB", text: "x", ageMonths: none })).status).toBe(200);
+      expect((seen.at(-1) as Record<string, unknown>).ageMonths).toBeUndefined();
+    }
   });
 });
