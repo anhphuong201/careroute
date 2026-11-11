@@ -43,6 +43,9 @@ describe("checkRedFlags – chest pain → 911", () => {
     "ਮੇਰੀ ਛਾਤੀ ਵਿੱਚ ਦਰਦ ਹੈ",
     "May sakit sa dibdib ako",
     "عندي ألم في الصدر",
+    "أعاني من ألم شديد في الصدر",
+    "عندي وجع في صدري",
+    "صدري يؤلمني",
   ])("%s", (text) => {
     const r = checkRedFlags({ text });
     expect(r.triggered).toBe(true);

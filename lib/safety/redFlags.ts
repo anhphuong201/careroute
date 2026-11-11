@@ -94,7 +94,9 @@ const PATTERNS: Record<Exclude<RedFlagCategory, "infant_fever">, RegExp[]> = {
     // tl
     /\bsakit\s+(sa|ng)\s+dibdib/,
     // ar
-    /ألم\s*(في\s*)?الصدر/,
+    // a few words may sit between "pain" and "chest" ("ألم شديد في الصدر" = severe pain in the chest)
+    /(ألم|آلام|وجع)[^.،؟!\n]{0,20}(الصدر|صدري)/,
+    /صدري\s*(يؤلمني|يوجعني)/,
   ],
   breathing: [
     // en
