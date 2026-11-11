@@ -20,6 +20,8 @@ export interface HouseholdMember {
   higherRisk?: HigherRisk;
   /** Orders options only; never changes the clinical route. */
   preferredMode?: PreferredMode;
+  /** The one-time profile questions were shown (answered or skipped) – don't ask again. */
+  profileAsked?: boolean;
   hasFamilyDoctor: "yes" | "no" | "hard_to_access";
   /** Synthea persona id in /data/personas (prototype only). */
   personaId?: string;

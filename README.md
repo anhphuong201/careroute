@@ -23,7 +23,7 @@ npm test                     # red-flag unit tests
 ## How the agent works
 Rule of thumb for the intake: **ask a question only if its answer can change the route.**
 ```
-User ─► who needs care (exact age: birth date, else months under 2 / years) + family doctor
+User ─► who needs care: pick a saved household member (their age, family doctor and profile are reused, never re-asked)
      ─► safety checklist (tap = emergency screen, no AI)
      ─► one screen: own words + severity + trend + how long (+ coverage / higher-risk / preferred mode, asked once)
         (severity/trend/duration are required for new or minor symptoms – the server asks for them – optional for renewals and labs)
@@ -46,6 +46,7 @@ User ─► who needs care (exact age: birth date, else months under 2 / years) 
      ─► /api/summary → one-page PDF (FHIR IPS layout) from /data/personas
 ```
 - **Follow-up facts** live in one typed registry (`lib/facts.ts`): `temperature_c`, `drinking_and_peeing_normally`, `medication_name`, `runs_out_when`, `is_controlled_drug`, `lab_ordered_by`, `lab_flagged_abnormal`, `can_bear_weight_or_use`, `could_be_pregnant`. Rules opt in with `required_facts: [...]` in their front-matter. Only route facts are enforced by the server: `runs_out_when` + `is_controlled_drug` for renewals (`medication_name` is optional) and `lab_ordered_by` + `lab_flagged_abnormal` for labs. The walk-in rule (the catch-all) lists none. `temperature_c` and `drinking_and_peeing_normally` are urgency checks, not route facts; weight-bearing and pregnancy are left to the AI.
+- The emergency screen speaks the language the person wrote in: a rule-based guess (`lib/safety/language.ts`, no AI) at the first gate, the model's detected language at the second. Phone numbers stay Canada's 9-1-1 / 9-8-8 / 8-1-1 and are kept left-to-right in Arabic.
 - "Call 9-1-1 if it gets worse" is shown in the UI language and in the language the person wrote in (all 8 red-flag languages; non-en/fr translations still need native review). Other fixed texts fall back to English.
 - Structured facts, intake and coverage go into the model's turn as plain lines **outside** `<user_request>`. Without coverage, the agent is told to mention cost and the result shows a cost note.
 - Answers can only add urgency: a fever answer feeds the red-flag rules, and for `is_controlled_drug` the most cautious answer wins (the person's, a drug-database "controlled" schedule, or the model reading "yes" in the text; the model can never supply "no").

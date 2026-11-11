@@ -526,3 +526,9 @@ body { background: var(--bg); }
 .chips-big .chip { font-size: 1.05rem; padding: 12px 16px; min-height: 48px; }
 .safety-line .block { display: block; font-weight: 600; margin-top: 2px; }
 .notice { border: 1px solid var(--primary, #23308a); }
+.emergency-second { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line, #dde3ee); color: var(--muted); }
+.who-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.for-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0; color: var(--muted); }
+.for-line .link-btn { margin-left: auto; }
+.who-picker { margin-bottom: 8px; }
+.who-picker .who-summary { margin-top: 4px; }

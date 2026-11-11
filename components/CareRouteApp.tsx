@@ -2,7 +2,7 @@
 
 import { I } from "@/components/Icon";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { STRINGS, call911Line, type Lang, type Strings } from "@/lib/i18n";
+import { STRINGS, call911Line, emergencyText, ltrNumbers, type EmergencyText, type Lang, type Strings } from "@/lib/i18n";
 import { ALL_REGIONS, PROVINCES, isEnabledProvince, type ProvinceCode } from "@/lib/provinces";
 import { CITIES } from "@/lib/cities";
 import { storage } from "@/lib/client/storage";
@@ -155,6 +155,8 @@ export default function CareRouteApp() {
   const [locStatus, setLocStatus] = useState<"idle" | "asking" | "on" | "denied">("idle");
   const [checklist, setChecklist] = useState<Partial<Record<RedFlagCategory, boolean>>>({});
   const [emergency, setEmergency] = useState<RedFlagAction | null>(null);
+  /** Language the person wrote in, for the emergency screen (null = the app's language). */
+  const [emergencyLang, setEmergencyLang] = useState<string | null>(null);
   const [result, setResult] = useState<RouteResult | null>(null);
   const [intake, setIntake] = useState<CoreIntake>({});
   const [facts, setFacts] = useState<FactAnswers>({});
@@ -173,6 +175,8 @@ export default function CareRouteApp() {
   /** Where the confirmed appointment is (for transit / Uber links). */
   const [bookedPlace, setBookedPlace] = useState<TravelPlace | null>(null);
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
+  /** Where "Done" in the household editor goes back to (e.g. the safety check after editing who needs care). */
+  const [householdReturn, setHouseholdReturn] = useState<Screen | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [history, setHistory] = useState<SearchRecord[]>([]);
@@ -260,6 +264,7 @@ export default function CareRouteApp() {
     const action: RedFlagAction = category === "suicidal_thoughts" ? "call_911_or_988" : category === "infant_fever" ? "call_811" : "call_911";
     setChecklist({ ...checklist, [category]: true });
     setEmergency(action);
+    setEmergencyLang(null); // tapped in the app's own language
     record({ route: "emergency", reason: "safety checklist", sourceUrl: "" });
     setScreen("emergency");
   }
@@ -271,7 +276,7 @@ export default function CareRouteApp() {
     setFacts({});
     setFollowUps([]);
     setPending(null);
-    setAskProfile(!member.coverage);
+    setAskProfile(!member.coverage && !member.profileAsked);
     setIntakeRequired(false);
     setResult(null);
     setBooking(null);
@@ -280,6 +285,7 @@ export default function CareRouteApp() {
   }
 
   async function submit(answers: FactAnswers = facts, asked: FollowUp[] = followUps) {
+    if (askProfile && !member.profileAsked) updateMember({ ...member, profileAsked: true }); // asked once, even if skipped
     setScreen("loading");
     setBooking(null);
     try {
@@ -298,6 +304,7 @@ export default function CareRouteApp() {
       const data = (await res.json()) as AgentResult;
       if (data.type === "emergency") {
         setEmergency(data.action);
+        setEmergencyLang(data.language ?? null);
         record({ route: "emergency", reason: `safety rules (${data.stage})`, sourceUrl: "" });
         setScreen("emergency");
       } else if (data.type === "route") {
@@ -617,7 +624,8 @@ export default function CareRouteApp() {
               onSelect={setMemberId}
               onDone={() => {
                 setEditMemberId(null);
-                setScreen(result ? "result" : "home");
+                setScreen(householdReturn ?? (result ? "result" : "home"));
+                setHouseholdReturn(null);
               }}
             />
           )}
@@ -625,6 +633,22 @@ export default function CareRouteApp() {
           {screen === "check" && (
             <section>
               <BackLink t={t} onClick={() => setScreen("home")} />
+              <WhoNeedsCare
+                t={t}
+                guest={guest}
+                members={members}
+                memberId={memberId}
+                onPick={(id) => {
+                  setMemberId(id);
+                  const m = members.find((x) => x.id === id) ?? guest;
+                  setAskProfile(!m.coverage && !m.profileAsked);
+                }}
+                onEdit={() => {
+                  setEditMemberId(member.id);
+                  setHouseholdReturn("check");
+                  setScreen("household");
+                }}
+              />
               <h1>{t.checkTitle}</h1>
               <p>{t.checkIntro}</p>
               <div className="stack">
@@ -657,6 +681,12 @@ export default function CareRouteApp() {
           {screen === "need" && (
             <section>
               <BackLink t={t} onClick={() => setScreen("check")} />
+              <p className="for-line">
+                {t.forPerson}: <strong>{member.id === "guest" ? member.displayName || t.me : member.displayName}</strong> · {ageText(t, member)}
+                <button className="link-btn" onClick={() => setScreen("check")}>
+                  {t.changePerson}
+                </button>
+              </p>
               <h1>{t.needTitle}</h1>
               <label htmlFor="need" className="help">
                 {t.needHelp}
@@ -760,7 +790,7 @@ export default function CareRouteApp() {
             </section>
           )}
 
-          {screen === "emergency" && emergency && <Emergency t={t} action={emergency} onBack={() => { setChecklist({}); setScreen("need"); }} />}
+          {screen === "emergency" && emergency && <Emergency t={t} action={emergency} language={emergencyLang} onBack={() => { setChecklist({}); setScreen("need"); }} />}
 
           {screen === "result" && result && (
             <Result
@@ -1071,6 +1101,48 @@ function SummaryCard({ t, member, onDownload }: { t: Strings; member: HouseholdM
   );
 }
 
+/**
+ * "Who needs care?" at the start of every search: pick a saved person, and their saved details (age, family doctor,
+ * coverage …) are used without asking again.
+ */
+function WhoNeedsCare(props: {
+  t: Strings;
+  guest: HouseholdMember;
+  members: HouseholdMember[];
+  memberId: string | null;
+  onPick: (id: string | null) => void;
+  onEdit: () => void;
+}) {
+  const { t, guest, members, memberId } = props;
+  const m = members.find((x) => x.id === memberId) ?? guest;
+  const bits = [ageText(t, m), t.familyDoctorShort[m.hasFamilyDoctor], m.coverage ? t.coverages[m.coverage] : null].filter(Boolean);
+  return (
+    <div className="who-picker">
+      <p className="label">{t.whoNeedsCare}</p>
+      {members.length > 0 && (
+        <div className="people">
+          <PersonChip label={guest.displayName || t.me} sub={ageText(t, guest)} on={memberId === null} onClick={() => props.onPick(null)} />
+          {members.map((x) => (
+            <PersonChip key={x.id} label={x.displayName} sub={ageText(t, x)} on={memberId === x.id} onClick={() => props.onPick(x.id)} />
+          ))}
+        </div>
+      )}
+      <div className="card who-summary">
+        <div>
+          <strong>{m.id === "guest" ? m.displayName || t.me : m.displayName}</strong>
+          <span className="muted small block">{bits.join(" · ")}</span>
+          {(m.birthDate || m.ageMonths !== undefined || m.coverage) && <span className="muted small block">{t.savedProfileNote}</span>}
+        </div>
+        {(m.id !== "guest" || members.length > 0) && (
+          <button className="link-btn" onClick={props.onEdit} aria-label={`${t.editLabel} ${m.displayName || t.me}`}>
+            {t.editLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** A row of single-choice tap chips. */
 function TapRow<T extends string>(props: { label: string; values: readonly T[]; labels: Record<string, string>; value?: T; onPick: (v: T) => void }) {
   const id = `tap-${props.values.join("-")}`;
@@ -1374,40 +1446,54 @@ function HouseholdEditor(props: {
   );
 }
 
-function Emergency({ t, action, onBack }: { t: Strings; action: RedFlagAction; onBack: () => void }) {
-  const body = action === "call_911" ? t.emergency911Body : action === "call_911_or_988" ? t.emergency988Body : t.emergency811Body;
+function Emergency({ t, action, language, onBack }: { t: Strings; action: RedFlagAction; language: string | null; onBack: () => void }) {
+  const ui: EmergencyText = {
+    title: t.emergencyTitle, body911: t.emergency911Body, body988: t.emergency988Body, body811: t.emergency811Body,
+    call911: t.call911, call988: t.call988, call811: t.call811,
+  };
+  // Speak the language the person wrote in (if we have it); keep the app's language underneath when it differs.
+  const theirs = emergencyText(language ?? undefined);
+  const main = theirs ?? ui;
+  const second = theirs && theirs.body911 !== ui.body911 ? ui : null;
+  const rtl = !!language && ["ar", "fa", "ur", "he"].includes(language.slice(0, 2));
+  const langAttr = theirs ? language ?? undefined : undefined;
+  const body = (x: EmergencyText) => (action === "call_911" ? x.body911 : action === "call_911_or_988" ? x.body988 : x.body811);
+  const L = (s: string) => ltrNumbers(s);
   return (
     <section className="emergency">
       <div className="emergency-icon" aria-hidden>
         <I n="siren" size={44} />
       </div>
-      <h1>{t.emergencyTitle}</h1>
-      <p className="big">{body}</p>
+      <div lang={langAttr} dir={rtl ? "rtl" : undefined}>
+        <h1>{main.title}</h1>
+        <p className="big">{L(body(main))}</p>
+      </div>
       {action === "call_911" && (
-        <a className="btn btn-danger" href="tel:911">
-          <I n="phone" /> {t.call911}
+        <a className="btn btn-danger" href="tel:911" lang={langAttr} dir={rtl ? "rtl" : undefined}>
+          <I n="phone" /> {L(main.call911)}
         </a>
       )}
       {action === "call_911_or_988" && (
         <>
-          <a className="btn btn-danger" href="tel:988">
-            <I n="phone" /> {t.call988}
+          <a className="btn btn-danger" href="tel:988" lang={langAttr} dir={rtl ? "rtl" : undefined}>
+            <I n="phone" /> {L(main.call988)}
           </a>
-          <a className="btn btn-danger-outline" href="tel:911">
-            {t.call911}
+          <a className="btn btn-danger-outline" href="tel:911" lang={langAttr} dir={rtl ? "rtl" : undefined}>
+            {L(main.call911)}
           </a>
         </>
       )}
       {action === "call_811" && (
         <>
-          <a className="btn btn-danger" href="tel:811">
-            <I n="phone" /> {t.call811}
+          <a className="btn btn-danger" href="tel:811" lang={langAttr} dir={rtl ? "rtl" : undefined}>
+            <I n="phone" /> {L(main.call811)}
           </a>
-          <a className="btn btn-danger-outline" href="tel:911">
-            {t.call911}
+          <a className="btn btn-danger-outline" href="tel:911" lang={langAttr} dir={rtl ? "rtl" : undefined}>
+            {L(main.call911)}
           </a>
         </>
       )}
+      {second && <p className="emergency-second">{body(second)}</p>}
       <p className="muted small">{t.safetyRuleNote}</p>
       <button className="btn btn-ghost" onClick={onBack}>
         {t.emergencyBack}
