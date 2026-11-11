@@ -6,7 +6,7 @@ import { STRINGS, type Lang, type Strings } from "@/lib/i18n";
 import { ALL_REGIONS, PROVINCES, isEnabledProvince, type ProvinceCode } from "@/lib/provinces";
 import { CITIES } from "@/lib/cities";
 import { storage } from "@/lib/client/storage";
-import type { AgeGroup, Household, HouseholdMember, SearchRecord } from "@/lib/types";
+import type { Household, HouseholdMember, SearchRecord } from "@/lib/types";
 import type { AgentResult } from "@/lib/agent/runAgent";
 import type { RedFlagAction, RedFlagCategory } from "@/lib/safety/redFlags";
 import type { Booking } from "@/lib/tools/booking";
@@ -18,6 +18,11 @@ import { icsFor } from "@/lib/client/bookingHelper";
 import { FREE_WINDOWS, googleCalendarUrl } from "@/lib/client/suggest";
 import { tzLabel, zonedDate, zonedParts } from "@/lib/data/tz";
 import { arriveBy, transitArriveByUrl, uberRideUrl, type TravelPlace } from "@/lib/client/travel";
+import {
+  COVERAGES, DURATIONS, HIGHER_RISK, PREFERRED_MODES, SEVERITIES, TRENDS,
+  ageGroupFromMonths, monthsFromBirthDate, type CoreIntake,
+} from "@/lib/intake";
+import { FACTS, type FactAnswers, type FactId, type FollowUp } from "@/lib/facts";
 
 type Screen =
   | "onboard" | "home" | "household" | "check" | "need" | "loading" | "emergency"
@@ -78,17 +83,24 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const initial = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
 const fmtWait = (m: number, t: Strings) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} ${t.min}` : `${m} ${t.min}`);
 
-function ageMonths(m: HouseholdMember): number | undefined {
-  if (m.birthDate) {
-    const b = new Date(m.birthDate);
-    if (!Number.isNaN(b.getTime())) {
-      const n = new Date();
-      return Math.max(0, (n.getFullYear() - b.getFullYear()) * 12 + n.getMonth() - b.getMonth() - (n.getDate() < b.getDate() ? 1 : 0));
-    }
-  }
-  // Unknown birth date: treat a baby as the youngest age, so the infant-fever safety rule still applies.
-  return m.ageGroup === "infant" ? 0 : undefined;
+/** Exact age in months: birth date first, then the age question. */
+function exactMonths(m: HouseholdMember): number | undefined {
+  const fromBirth = monthsFromBirthDate(m.birthDate);
+  if (fromBirth !== null) return fromBirth;
+  return typeof m.ageMonths === "number" ? m.ageMonths : undefined;
 }
+function ageMonths(m: HouseholdMember): number | undefined {
+  // Older saved profiles may only have "infant": treat a baby as the youngest age so the infant-fever rule still applies.
+  return exactMonths(m) ?? (m.ageGroup === "infant" ? 0 : undefined);
+}
+/** ageGroup is derived from the exact age (kept for older code and saved data). */
+const withAge = (m: HouseholdMember): HouseholdMember => ({ ...m, ageGroup: ageGroupFromMonths(exactMonths(m), m.ageGroup) });
+const fill = (s: string, n: number) => s.replace("{n}", String(n));
+const ageText = (t: Strings, m: HouseholdMember) => {
+  const n = exactMonths(m);
+  if (n === undefined) return t[m.ageGroup];
+  return n < 24 ? fill(t.ageMonthsOld, n) : fill(t.ageYearsOld, Math.floor(n / 12));
+};
 
 const TZ: Record<ProvinceCode, string> = { AB: "America/Edmonton", BC: "America/Vancouver" };
 
@@ -144,7 +156,12 @@ export default function CareRouteApp() {
   const [checklist, setChecklist] = useState<Partial<Record<RedFlagCategory, boolean>>>({});
   const [emergency, setEmergency] = useState<RedFlagAction | null>(null);
   const [result, setResult] = useState<RouteResult | null>(null);
-  const [clarifyQ, setClarifyQ] = useState("");
+  const [intake, setIntake] = useState<CoreIntake>({});
+  const [facts, setFacts] = useState<FactAnswers>({});
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [pending, setPending] = useState<FollowUp | null>(null);
+  /** Profile questions are shown once: when this search started without them (stays open while answering). */
+  const [askProfile, setAskProfile] = useState(false);
   const [clarifyA, setClarifyA] = useState("");
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState<Option | null>(null);
@@ -169,6 +186,7 @@ export default function CareRouteApp() {
     if (h) {
       setHousehold(h);
       setProvince(h.province);
+      if (h.guest) setGuest(h.guest); // returning user: the "Me" profile is prefilled
     }
     setHistory(storage.history());
     try {
@@ -196,7 +214,15 @@ export default function CareRouteApp() {
 
   function saveHousehold(h: Household) {
     setHousehold(h);
-    storage.saveHousehold(h);
+    storage.saveHousehold(h); // only writes when the person allowed saving
+  }
+  /** Update the person who needs care (the "Me" profile or a saved member) and keep it on this device. */
+  function updateMember(m: HouseholdMember) {
+    const next = withAge(m);
+    if (next.id === "guest") {
+      setGuest(next);
+      saveHousehold({ ...household, guest: next });
+    } else saveHousehold({ ...household, members: household.members.map((x) => (x.id === next.id ? next : x)) });
   }
   function chooseProvince(p: ProvinceCode) {
     setProvince(p);
@@ -239,14 +265,18 @@ export default function CareRouteApp() {
   function startSearch(prefill?: string) {
     if (prefill !== undefined) setText(prefill);
     setChecklist({});
+    setIntake({});
+    setFacts({});
+    setFollowUps([]);
+    setPending(null);
+    setAskProfile(!member.coverage);
     setResult(null);
     setBooking(null);
     setChosen(null);
     setScreen("check");
   }
 
-  async function submit(extra?: string) {
-    const fullText = extra ? `${text}\n\n${clarifyQ}\n${extra}` : text;
+  async function submit(answers: FactAnswers = facts, asked: FollowUp[] = followUps) {
     setScreen("loading");
     setBooking(null);
     try {
@@ -254,8 +284,12 @@ export default function CareRouteApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          province, text: fullText, ageGroup: member.ageGroup, ageMonths: ageMonths(member),
+          province, text, ageGroup: member.ageGroup, ageMonths: ageMonths(member),
           hasFamilyDoctor: member.hasFamilyDoctor, checklist, location, city: city || undefined,
+          intake,
+          profile: { coverage: member.coverage, higherRisk: member.higherRisk, preferredMode: member.preferredMode },
+          facts: answers,
+          followUps: asked,
         }),
       });
       const data = (await res.json()) as AgentResult;
@@ -268,8 +302,8 @@ export default function CareRouteApp() {
         record({ route: data.rule.route, routeTitle: data.rule.title, reason: data.reason, sourceUrl: data.rule.source_url, language: data.language });
         setScreen("result");
       } else if (data.type === "clarify") {
-        if (!data.question) return setScreen("need");
-        setClarifyQ(data.question);
+        if (!data.fact_id) return setScreen("need");
+        setPending({ fact_id: data.fact_id, likely_route: data.likely_route ?? "call_811" });
         setClarifyA("");
         setScreen("clarify");
       } else {
@@ -280,6 +314,17 @@ export default function CareRouteApp() {
       setError(t.errorGeneric);
       setScreen("error");
     }
+  }
+
+  /** A tap answer to a follow-up: kept in memory only for this request, then the request is re-sent. */
+  function answerFollowUp(value: string) {
+    if (!pending) return;
+    const answers = { ...facts, [pending.fact_id]: value };
+    const asked = [...followUps, pending];
+    setFacts(answers);
+    setFollowUps(asked);
+    setPending(null);
+    submit(answers, asked);
   }
 
   async function confirmBooking(slot: Date) {
@@ -521,9 +566,9 @@ export default function CareRouteApp() {
 
               <SectionHead title={t.whoNeedsCare} action={t.myHousehold} onAction={() => setScreen("household")} />
               <div className="people">
-                <PersonChip label={t.me} sub={t[guest.ageGroup]} on={memberId === null} onClick={() => setMemberId(null)} />
+                <PersonChip label={t.me} sub={ageText(t, guest)} on={memberId === null} onClick={() => setMemberId(null)} />
                 {members.map((m) => (
-                  <PersonChip key={m.id} label={m.displayName} sub={t[m.ageGroup]} on={memberId === m.id} onClick={() => setMemberId(m.id)} />
+                  <PersonChip key={m.id} label={m.displayName} sub={ageText(t, m)} on={memberId === m.id} onClick={() => setMemberId(m.id)} />
                 ))}
                 <button className="person person-add" onClick={() => setScreen("household")}>
                   <span className="avatar avatar-lg avatar-add" aria-hidden>
@@ -535,7 +580,7 @@ export default function CareRouteApp() {
 
               {memberId === null && (
                 <div className="card">
-                  <MemberQuestions t={t} m={guest} onChange={setGuest} />
+                  <MemberQuestions t={t} m={guest} onChange={updateMember} />
                 </div>
               )}
 
@@ -583,7 +628,9 @@ export default function CareRouteApp() {
                     ["stroke_signs", t.flagStroke, "brain"],
                     ["severe_bleeding", t.flagBleeding, "drop"],
                     ["suicidal_thoughts", t.flagSuicide, "chat"],
-                    ...(member.ageGroup === "infant" ? [["infant_fever", t.flagInfantFever, "thermo"]] : []),
+                    ...((ageMonths(member) ?? 99) < 3 || (exactMonths(member) === undefined && member.ageGroup === "infant")
+                      ? [["infant_fever", t.flagInfantFever, "thermo"]]
+                      : []),
                   ] as [RedFlagCategory, string, string][]
                 ).map(([c, label, icon]) => (
                   <button key={c} className="flag" onClick={() => flag(c)}>
@@ -621,17 +668,22 @@ export default function CareRouteApp() {
                   );
                 })}
               </div>
-              <p className="label">{t.howLong}</p>
-              <div className="chips">
-                {t.durations.map((d) => {
-                  const on = text.toLowerCase().includes(d.toLowerCase());
-                  return (
-                    <button key={d} className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => setText(toggleItem(text, d))}>
-                      {d}
-                    </button>
-                  );
-                })}
-              </div>
+              {exactMonths(member) === undefined && (
+                <>
+                  <p className="label">{t.ageLabel}</p>
+                  <AgeInput t={t} m={member} onChange={updateMember} />
+                </>
+              )}
+              <TapRow label={t.severityLabel} values={SEVERITIES} labels={t.severities} value={intake.severity} onPick={(v) => setIntake({ ...intake, severity: v })} />
+              <TapRow label={t.trendLabel} values={TRENDS} labels={t.trends} value={intake.trend} onPick={(v) => setIntake({ ...intake, trend: v })} />
+              <TapRow label={t.howLong} values={DURATIONS} labels={t.durationBuckets} value={intake.duration} onPick={(v) => setIntake({ ...intake, duration: v })} />
+              {askProfile && (
+                <div className="card">
+                  <p className="label">{t.profileTitle}</p>
+                  <p className="help small">{t.profileHelp}</p>
+                  <ProfileQuestions t={t} m={member} onChange={updateMember} />
+                </div>
+              )}
               <SectionHead title={t.location} />
               <button className={`btn btn-soft ${locStatus === "on" ? "is-on" : ""}`} onClick={askLocation} aria-pressed={locStatus === "on"}>
                 <I n="pin" /> {locStatus === "on" ? t.locationOn : t.useMyLocation}
@@ -658,17 +710,40 @@ export default function CareRouteApp() {
             </section>
           )}
 
-          {screen === "clarify" && (
+          {screen === "clarify" && pending && (
             <section>
-              <h1>{t.clarify}</h1>
-              <p className="big">{clarifyQ}</p>
-              <label htmlFor="ans" className="label">
-                {t.answer}
-              </label>
-              <textarea id="ans" rows={3} value={clarifyA} onChange={(e) => setClarifyA(e.target.value)} />
-              <button className="btn" disabled={!clarifyA.trim()} onClick={() => submit(clarifyA)}>
-                {t.continue}
-              </button>
+              <BackLink t={t} onClick={() => setScreen("need")} />
+              <p className="route-eyebrow">{fill(t.followUpCount, followUps.length + 1)}</p>
+              <h1>{t.followUpTitle}</h1>
+              <p className="big" id="fu-q">{t.facts[pending.fact_id]?.q}</p>
+              <p className="help small">{t.followUpHelp}</p>
+              {FACTS[pending.fact_id].type === "text" ? (
+                <>
+                  <input
+                    aria-labelledby="fu-q"
+                    value={clarifyA}
+                    maxLength={FACTS[pending.fact_id].maxLength}
+                    placeholder={t.medicationPlaceholder}
+                    onChange={(e) => setClarifyA(e.target.value)}
+                  />
+                  <div className="chips" role="group" aria-labelledby="fu-q">
+                    <button className="chip" onClick={() => answerFollowUp("not_sure")}>
+                      {t.notSure}
+                    </button>
+                  </div>
+                  <button className="btn" disabled={!clarifyA.trim()} onClick={() => answerFollowUp(clarifyA.trim())}>
+                    {t.continue} <I n="next" />
+                  </button>
+                </>
+              ) : (
+                <div className="chips chips-big" role="group" aria-labelledby="fu-q">
+                  {FACTS[pending.fact_id].options.map((o) => (
+                    <button key={o} className="chip" onClick={() => answerFollowUp(o)}>
+                      {o === "not_sure" ? t.notSure : t.facts[pending.fact_id].a[o]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
@@ -681,6 +756,7 @@ export default function CareRouteApp() {
               province={province}
               location={location}
               result={result}
+              coverage={member.coverage}
               onChoose={(o) => {
                 setChosen(o);
                 setScreen("book");
@@ -821,7 +897,7 @@ export default function CareRouteApp() {
                         </span>
                         <span>
                           <strong>{m.displayName}</strong>
-                          <span className="muted small block">{t[m.ageGroup]}</span>
+                          <span className="muted small block">{ageText(t, m)}</span>
                         </span>
                       </span>
                       <button className="btn-small" onClick={() => downloadSummary(m)}>
@@ -982,17 +1058,87 @@ function SummaryCard({ t, member, onDownload }: { t: Strings; member: HouseholdM
   );
 }
 
-function MemberQuestions({ t, m, onChange }: { t: Strings; m: HouseholdMember; onChange: (m: HouseholdMember) => void }) {
+/** A row of single-choice tap chips. */
+function TapRow<T extends string>(props: { label: string; values: readonly T[]; labels: Record<string, string>; value?: T; onPick: (v: T) => void }) {
+  const id = `tap-${props.values.join("-")}`;
   return (
     <>
-      <p className="label">{t.ageGroup}</p>
-      <div className="segmented segmented-3">
-        {(["infant", "child", "adult"] as AgeGroup[]).map((a) => (
-          <button key={a} className={m.ageGroup === a ? "on" : ""} aria-pressed={m.ageGroup === a} onClick={() => onChange({ ...m, ageGroup: a })}>
-            {t[a]}
+      <p className="label" id={id}>
+        {props.label}
+      </p>
+      <div className="chips" role="group" aria-labelledby={id}>
+        {props.values.map((v) => (
+          <button key={v} className={`chip ${props.value === v ? "on" : ""}`} aria-pressed={props.value === v} onClick={() => props.onPick(v)}>
+            {props.value === v ? <I n="check" size={14} /> : null}
+            {props.labels[v]}
           </button>
         ))}
       </div>
+    </>
+  );
+}
+
+/** Exact age: from the birth date if there is one; otherwise months (under 2) or years. */
+function AgeInput({ t, m, onChange }: { t: Strings; m: HouseholdMember; onChange: (m: HouseholdMember) => void }) {
+  const fromBirth = monthsFromBirthDate(m.birthDate);
+  const [unit, setUnit] = useState<"years" | "months">(() => (typeof m.ageMonths === "number" && m.ageMonths < 24) || m.ageGroup === "infant" ? "months" : "years");
+  if (fromBirth !== null) return <p className="help">{ageText(t, m)} · {t.ageFromBirth}</p>;
+  const shown = typeof m.ageMonths === "number" ? (unit === "months" ? m.ageMonths : Math.floor(m.ageMonths / 12)) : "";
+  const set = (raw: string, u = unit) => {
+    const n = Math.floor(Number(raw));
+    if (raw === "" || !Number.isFinite(n) || n < 0) return onChange(withAge({ ...m, ageMonths: undefined }));
+    const months = u === "months" ? Math.min(n, 23) : Math.min(n, 120) * 12;
+    onChange(withAge({ ...m, ageMonths: months }));
+  };
+  return (
+    <div className="row-center age-input">
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={unit === "months" ? 23 : 120}
+        aria-label={`${t.ageLabel} (${unit === "months" ? t.ageMonths : t.ageYears})`}
+        value={shown}
+        onChange={(e) => set(e.target.value)}
+      />
+      <div className="segmented">
+        {(["years", "months"] as const).map((u) => (
+          <button
+            key={u}
+            className={unit === u ? "on" : ""}
+            aria-pressed={unit === u}
+            onClick={() => {
+              setUnit(u);
+              if (shown !== "") set(String(shown), u);
+            }}
+          >
+            {u === "months" ? t.ageMonths : t.ageYears}
+          </button>
+        ))}
+      </div>
+      {unit === "years" && typeof m.ageMonths === "number" && m.ageMonths < 24 && <p className="help small">{t.ageUnderTwoHint}</p>}
+    </div>
+  );
+}
+
+/** Asked once and saved with the household: coverage, optional higher-risk yes/no, optional preferred mode. */
+function ProfileQuestions({ t, m, onChange }: { t: Strings; m: HouseholdMember; onChange: (m: HouseholdMember) => void }) {
+  return (
+    <>
+      <TapRow label={t.coverageLabel} values={COVERAGES} labels={t.coverages} value={m.coverage} onPick={(v) => onChange({ ...m, coverage: v })} />
+      <TapRow label={t.higherRiskLabel} values={HIGHER_RISK} labels={t.higherRisks} value={m.higherRisk} onPick={(v) => onChange({ ...m, higherRisk: v })} />
+      <p className="help small">{t.higherRiskHelp}</p>
+      <TapRow label={t.preferredModeLabel} values={PREFERRED_MODES} labels={t.preferredModes} value={m.preferredMode} onPick={(v) => onChange({ ...m, preferredMode: v })} />
+      <p className="help small">{t.preferredModeHelp}</p>
+    </>
+  );
+}
+
+function MemberQuestions({ t, m, onChange }: { t: Strings; m: HouseholdMember; onChange: (m: HouseholdMember) => void }) {
+  return (
+    <>
+      <p className="label">{t.ageLabel}</p>
+      <AgeInput t={t} m={m} onChange={onChange} />
       <p className="label">{t.familyDoctor}</p>
       <div className="segmented segmented-3">
         {(
@@ -1090,7 +1236,7 @@ function HouseholdEditor(props: {
               <span>
                 <strong>{m.displayName}</strong>
                 <span className="muted small block">
-                  {t[m.ageGroup]} · {m.hasFamilyDoctor === "yes" ? t.yes : m.hasFamilyDoctor === "no" ? t.no : t.hardToReach}
+                  {ageText(t, m)} · {m.hasFamilyDoctor === "yes" ? t.yes : m.hasFamilyDoctor === "no" ? t.no : t.hardToReach}
                 </span>
               </span>
             </span>
@@ -1112,11 +1258,12 @@ function HouseholdEditor(props: {
             {t.name}
           </label>
           <input id="mname" value={draft.displayName} onChange={(e) => setDraft({ ...draft, displayName: e.target.value })} />
-          <MemberQuestions t={t} m={draft} onChange={setDraft} />
           <label className="label" htmlFor="mbirth">
             {t.birthDate}
           </label>
-          <input id="mbirth" type="date" value={draft.birthDate ?? ""} onChange={(e) => setDraft({ ...draft, birthDate: e.target.value || undefined })} />
+          <input id="mbirth" type="date" value={draft.birthDate ?? ""} onChange={(e) => setDraft(withAge({ ...draft, birthDate: e.target.value || undefined }))} />
+          <MemberQuestions t={t} m={draft} onChange={setDraft} />
+          <ProfileQuestions t={t} m={draft} onChange={setDraft} />
           <label className="label" htmlFor="mpersona">
             {t.demoRecord}
           </label>
@@ -1284,6 +1431,7 @@ function Result(props: {
   province: ProvinceCode;
   location: { lat: number; lng: number } | null;
   result: RouteResult;
+  coverage?: HouseholdMember["coverage"];
   onChoose: (o: Option) => void;
   onHelper: (o: Option) => void;
   onSmart: () => void;
@@ -1313,8 +1461,15 @@ function Result(props: {
           </span>
           <h1>{t.routeNames[r.rule.route] ?? r.rule.title}</h1>
         </div>
-        {r.no_guideline && !r.reason ? (
-          <p className="route-reason">{t.noGuidelineBody}</p>
+        {r.escalated ? (
+          <>
+            <p className="route-why-label">{t.severeWorseTitle}</p>
+            <p className="route-reason">{t.severeWorseBody}</p>
+          </>
+        ) : r.no_guideline && !r.reason ? (
+          <p className="route-reason">
+            {r.fallback_reason === "missing_facts" ? t.missingFactsBody : r.fallback_reason === "controlled_drug" ? t.controlledBody : t.noGuidelineBody}
+          </p>
         ) : (
           <>
             <p className="route-why-label">{t.why}</p>
@@ -1330,6 +1485,17 @@ function Result(props: {
         )}
         {action}
       </div>
+
+      {r.call_911_if_worse && (
+        <a className="safety-line" href="tel:911">
+          <I n="phone" /> {t.call911IfWorse}
+        </a>
+      )}
+      {(props.coverage === "waiting_for_coverage" || props.coverage === "no_coverage") && r.rule.route !== "call_811" && (
+        <p className="card cost-note">
+          <I n="info" /> {t.costNote}
+        </p>
+      )}
 
       {r.alternatives.length > 0 && (
         <>
@@ -1437,9 +1603,11 @@ function Alternatives(props: {
             <strong>{t.routeNames[alt.rule.route] ?? alt.rule.title}</strong>
             <SourceInfo t={t} sources={alt.rule.sources} />
           </div>
-          <p className="alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
-            {alt.when}
-          </p>
+          {alt.when && (
+            <p className="alt-when" dir={props.rtl ? "rtl" : "auto"} lang={props.lang}>
+              {alt.when}
+            </p>
+          )}
           {alt.rule.route === "call_811" ? (
             <a className="btn" href="tel:811">
               <I n="phone" /> {t.call811}

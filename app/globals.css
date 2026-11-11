@@ -516,3 +516,11 @@ body { background: var(--bg); }
 .alt-panel .nested .option-head { gap: 0.6rem; }
 
 .demo-note { color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 0.4rem 0.6rem; }
+
+/* Smarter intake */
+.safety-line { display: flex; align-items: center; gap: 8px; margin: 12px 0; padding: 12px 14px; border-radius: 14px; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); font-weight: 700; text-decoration: none; }
+.cost-note { display: flex; gap: 8px; align-items: flex-start; }
+.age-input { gap: 10px; flex-wrap: wrap; }
+.age-input input { width: 6.5rem; }
+.age-input .help { flex-basis: 100%; margin: 0; }
+.chips-big .chip { font-size: 1.05rem; padding: 12px 16px; min-height: 48px; }
