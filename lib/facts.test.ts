@@ -73,3 +73,23 @@ describe("required_facts front-matter", () => {
     expect(missingDecisiveFacts(facts, "minor_symptom", new Set())).toEqual([]);
   });
 });
+
+describe("en/fr strings for every follow-up and intake answer", () => {
+  it("has a question and a label for every answer (except the shared 'not sure')", async () => {
+    const { STRINGS } = await import("./i18n");
+    const intake = await import("./intake");
+    for (const t of Object.values(STRINGS)) {
+      expect(t.notSure).toBeTruthy();
+      for (const id of FACT_IDS) {
+        expect(t.facts[id]?.q, id).toBeTruthy();
+        for (const o of FACTS[id].options) if (o !== "not_sure" && FACTS[id].type === "choice") expect(t.facts[id].a[o], `${id}.${o}`).toBeTruthy();
+      }
+      for (const v of intake.TRENDS) expect(t.trends[v]).toBeTruthy();
+      for (const v of intake.SEVERITIES) expect(t.severities[v]).toBeTruthy();
+      for (const v of intake.DURATIONS) expect(t.durationBuckets[v]).toBeTruthy();
+      for (const v of intake.COVERAGES) expect(t.coverages[v]).toBeTruthy();
+      for (const v of intake.HIGHER_RISK) expect(t.higherRisks[v]).toBeTruthy();
+      for (const v of intake.PREFERRED_MODES) expect(t.preferredModes[v]).toBeTruthy();
+    }
+  });
+});
