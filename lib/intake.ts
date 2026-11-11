@@ -59,8 +59,29 @@ export function describeAge(months: number): string {
   return `${Math.floor(months / 12)} years old`;
 }
 
+/** Under 18: exact months when known, else the age group. */
+export const isUnder18 = (ageMonths: number | undefined, ageGroup: AgeGroup) =>
+  typeof ageMonths === "number" ? ageMonths < 18 * 12 : ageGroup !== "adult";
+
+/** Core taps required for new / minor symptom requests (optional for renewals and lab follow-up). */
+export const INTAKE_FIELDS = ["severity", "trend", "duration"] as const;
+export type IntakeField = (typeof INTAKE_FIELDS)[number];
+export const missingIntake = (c: CoreIntake): IntakeField[] => INTAKE_FIELDS.filter((f) => !c[f]);
+
 /**
  * Deterministic escalation (not AI): severe AND getting worse must never end at a
  * pharmacist or the registry.
  */
 export const needsEscalation = (c: CoreIntake) => c.severity === "severe" && c.trend === "worse";
+
+/**
+ * Age in months: a number or a numeric string ("2" → 2). Missing / null / "" = unknown.
+ * Anything else (non-numeric, negative, over 130 years) is a bad request – never silently dropped.
+ */
+export function parseAgeMonths(v: unknown): { ok: true; value: number | undefined } | { ok: false } {
+  if (v === undefined || v === null || v === "") return { ok: true, value: undefined };
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v) ? Number(v) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 130 * 12) return { ok: false };
+  return { ok: true, value: Math.floor(n) };
+}
+

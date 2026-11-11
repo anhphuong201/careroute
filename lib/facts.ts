@@ -44,15 +44,23 @@ export const FACTS: Record<FactId, FactDef> = {
     id: "temperature_c",
     type: "choice",
     options: ["below_38", "38_to_38_9", "39_to_39_9", "40_or_higher", "not_sure"],
+    // Urgency check, not a route fact: for under-18s whose request mentions fever the server asks it itself.
     relevantWhen: "the person mentions fever, feeling hot or chills",
   },
   drinking_and_peeing_normally: {
     id: "drinking_and_peeing_normally",
     type: "choice",
     options: YES_NO,
+    // Urgency check, not a route fact.
     relevantWhen: "a child or baby has fever, vomiting or diarrhea",
   },
-  medication_name: { id: "medication_name", type: "text", options: ["not_sure"], maxLength: 60, decidesFor: RENEWAL },
+  medication_name: {
+    id: "medication_name",
+    type: "text",
+    options: ["not_sure"],
+    maxLength: 60,
+    relevantWhen: "a renewal where the medicine's name would help (optional – never required)",
+  },
   runs_out_when: {
     id: "runs_out_when",
     type: "choice",
@@ -134,6 +142,13 @@ export function mostCautious(...values: (string | undefined)[]): string | undefi
 
 /** A controlled (or possibly controlled) medicine can never be renewed by a pharmacist here. */
 export const controlledOrUnsure = (answers: FactAnswers) => answers.is_controlled_drug === "yes" || answers.is_controlled_drug === "not_sure";
+
+/**
+ * Same-day urgency for a child (under 18) from tap answers: a temperature of 40 °C or more, or not drinking/peeing
+ * as usual. Deterministic, not AI. TODO: thresholds need clinical review.
+ */
+export const childUrgentFromFacts = (answers: FactAnswers) =>
+  answers.temperature_c === "40_or_higher" || answers.drinking_and_peeing_normally === "no";
 
 /** Extra words for the red-flag screen from structured answers. Can only ADD urgency. */
 export function redFlagHints(answers: FactAnswers): string {

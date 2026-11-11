@@ -3,7 +3,7 @@ id: ab-virtual-care
 province: AB
 route: virtual_care
 needs: [prescription_renewal, lab_followup, minor_symptom]
-required_facts: [medication_name, is_controlled_drug, lab_flagged_abnormal]
+required_facts: [is_controlled_drug, lab_flagged_abnormal]
 source_url: https://www.primarycarealberta.ca/page14142.aspx
 sources:
   - title: "Navigating care options – Primary Care Alberta"

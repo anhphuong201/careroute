@@ -3,7 +3,7 @@ id: ab-pharmacist
 province: AB
 route: pharmacist
 needs: [prescription_renewal, minor_symptom]
-required_facts: [medication_name, runs_out_when, is_controlled_drug, could_be_pregnant]
+required_facts: [runs_out_when, is_controlled_drug, could_be_pregnant]
 source_url: https://navigatecareab.ca/
 sources:
   - title: "Navigate Care Alberta – The Alberta Pharmacist Advantage (cites Alberta College of Pharmacy)"

@@ -233,6 +233,12 @@ function firstMatch(patterns: RegExp[], texts: string[]): string | null {
   return null;
 }
 
+/** True if the text mentions fever in any supported language (used to require a temperature for under-18s). */
+export function mentionsFever(text: string): boolean {
+  const { nfc, folded } = normalize(text ?? "");
+  return !!nfc && firstMatch(FEVER_PATTERNS, [nfc, folded]) !== null;
+}
+
 export function checkRedFlags(input: RedFlagInput): RedFlagResult {
   const matches: RedFlagMatch[] = [];
   const { nfc, folded } = normalize(input.text ?? "");
