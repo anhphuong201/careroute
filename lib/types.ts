@@ -1,4 +1,5 @@
 import type { ProvinceCode } from "./provinces";
+import type { Coverage, HigherRisk, PreferredMode } from "./intake";
 
 export type CareRoute = "pharmacist" | "virtual_care" | "walk_in" | "call_811" | "registry" | "family_doctor";
 
@@ -7,9 +8,18 @@ export type AgeGroup = "infant" | "child" | "adult";
 export interface HouseholdMember {
   id: string;
   displayName: string;
+  /** Derived from the exact age (kept for backward compatibility). */
   ageGroup: AgeGroup;
-  /** Optional, used for the infant (<3 months) red-flag rule. */
+  /** Exact age source #1 – also drives the infant (<3 months) red-flag rule. */
   birthDate?: string;
+  /** Exact age source #2 when no birth date: age in months (months for under 2, years×12 otherwise). */
+  ageMonths?: number;
+  /** Profile (asked once, device only, under the consent rules). */
+  coverage?: Coverage;
+  /** Only yes/no/prefer not to say – never which condition. */
+  higherRisk?: HigherRisk;
+  /** Orders options only; never changes the clinical route. */
+  preferredMode?: PreferredMode;
   hasFamilyDoctor: "yes" | "no" | "hard_to_access";
   /** Synthea persona id in /data/personas (prototype only). */
   personaId?: string;
@@ -33,6 +43,8 @@ export interface Household {
   locationHint?: string;
   preferredLanguage?: string;
   members: HouseholdMember[];
+  /** The "Me" profile when the person isn't saved as a member (same consent rules). */
+  guest?: HouseholdMember;
 }
 
 export interface SearchRecord {
